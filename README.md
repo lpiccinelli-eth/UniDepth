@@ -10,7 +10,7 @@
 
 ![](assets/docs/unidepth-banner.png)
 
-> [**UniDepth: Universal Monocular Metric Depth Estimation**](),  
+> [**UniDepth: Universal Monocular Metric Depth Estimation**](https://arxiv.org/abs/2403.18913),  
 > Luigi Piccinelli, Yung-Hsu Yang, Christos Sakaridis, Mattia Segu, Siyuan Li, Luc Van Gool, Fisher Yu,  
 > CVPR 2024 (to appear),  
 > *Paper at [arXiv 2403.18913](https://arxiv.org/pdf/2403.18913.pdf)*  
