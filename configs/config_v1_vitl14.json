@@ -1,0 +1,23 @@
+{
+    "generic": {
+        "seed": 13
+    },
+    "training": {},
+    "data": {
+        "image_shape": [462, 616]
+    },
+    "model": {
+        "name": "UniDepthV1",
+        "num_heads": 8,
+        "expansion": 4,
+        "pixel_decoder": {
+            "hidden_dim": 512,
+            "depths": [3, 2, 1],
+            "dropout": 0.0
+        },
+        "pixel_encoder": {
+            "name": "dinov2_vitl14",
+            "pretrained": null
+        }
+    }
+}

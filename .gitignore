@@ -1,0 +1,9 @@
+# don't upload macOS folder info
+*.DS_Store
+
+#python
+*.pyc
+__pycache__/
+
+#scripts
+*.sh
