@@ -155,7 +155,7 @@ For easy-to-use, we provide our models via TorchHub and current available versio
 1. UniDepthV1_ViTL14
 2. UniDepthV1_ConvNextL
 
-For imporved flexibility, we provide a UniDepth wrapper where you need to specifiy the version and the backbone to torch.hub.load() call, such as:
+For improved flexibility, we provide a UniDepth wrapper where you need to specify the version and the backbone to torch.hub.load() call, such as:
 ```python
 torch.hub.load("lpiccinelli-eth/UniDepth", "UniDepth", version=version, backbone=backbone, pretrained=True, trust_repo=True, force_reload=True)
 ```
