@@ -18,12 +18,13 @@
 
 ## News and ToDo
 
-- [ ] Release UniDepth as Pip package
-- [ ] Release smaller models
-- [ ] HuggingFace/Gradio demo
-- [ ] Release UniDepthV2  
-- [x] `01.04.2024`: Inference and v1 models released  
-- [x] `26.02.2024`: UniDepth accepted at CVPR 2024!  
+- [ ] Release UniDepth on PyPI.
+- [ ] Release smaller models.
+- [ ] Release HuggingFace/Gradio demo.
+- [ ] Release UniDepthV2.
+- [x] `02.04.2024`: Release UniDepth as python package.
+- [x] `01.04.2024`: Inference code and V1 models are released.
+- [x] `26.02.2024`: UniDepth is accepted at CVPR 2024!
 
 
 ## Zero-Shot Visualization
@@ -57,8 +58,8 @@ source $VENV_DIR/$NAME/bin/activate
 # Install PyTorch
 pip install torch==2.2.0 torchvision==0.17.0 torchaudio==2.2.0 --index-url https://download.pytorch.org/whl/cu118
 
-# Install other dependencies
-pip install -r requirements.txt
+# Install UniDepth
+pip install -e .
 
 # Install xFormers
 pip install xformers==0.0.24 --index-url https://download.pytorch.org/whl/cu118
@@ -66,8 +67,6 @@ pip install xformers==0.0.24 --index-url https://download.pytorch.org/whl/cu118
 # Install Pillow-SIMD (Optional)
 pip uninstall pillow
 CC="cc -mavx2" pip install -U --force-reinstall pillow-simd
-
-export PYTHONPATH="$PWD:$PYTHONPATH"
 ```
 
 If you use conda, you should change the following: 
