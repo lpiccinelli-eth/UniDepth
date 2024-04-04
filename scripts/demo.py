@@ -16,6 +16,8 @@ def demo(model):
     # get GT and pred
     depth_pred = predictions["depth"].squeeze().cpu().numpy()
     depth_gt = np.array(Image.open("assets/demo/depth.png")).astype(float) / 1000.0
+
+    # compute error, you have zero divison where depth_gt == 0.0
     depth_arel = np.abs(depth_gt - depth_pred) / depth_gt
     depth_arel[depth_gt == 0.0] = 0.0
 

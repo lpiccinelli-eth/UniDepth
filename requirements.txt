@@ -88,3 +88,7 @@ tzdata==2024.1
 urllib3==1.26.13
 wandb==0.16.3
 yacs==0.1.8
+torch==2.2.0
+torchvision==0.17.0
+torchaudio==2.2.0
+xformers==0.0.24

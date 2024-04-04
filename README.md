@@ -34,7 +34,7 @@
   <img src="assets/docs/theoffice.gif" alt="animated" />
 </p>
 
-### NuSceneS stitched cameras
+### NuScenes (stitched cameras)
 <p align="center">
   <img src="assets/docs/nuscenes_surround.gif" alt="animated" />
 </p>
@@ -55,14 +55,8 @@ export NAME=Unidepth
 python -m venv $VENV_DIR/$NAME
 source $VENV_DIR/$NAME/bin/activate
 
-# Install PyTorch
-pip install torch==2.2.0 torchvision==0.17.0 torchaudio==2.2.0 --index-url https://download.pytorch.org/whl/cu118
-
-# Install UniDepth
-pip install -e .
-
-# Install xFormers
-pip install xformers==0.0.24 --index-url https://download.pytorch.org/whl/cu118
+# Install UniDepth and dependencies
+pip install -e . --index-url https://download.pytorch.org/whl/cu118
 
 # Install Pillow-SIMD (Optional)
 pip uninstall pillow
@@ -143,7 +137,13 @@ intrinsics = torch.from_numpy(np.load(intrinsics_path)) # 3 x 3
 predictions = model.infer(rgb, intrinsics)
 ```
 
-To use the forward method you should format the input as:
+To use the forward method for your custom training, you should:  
+1) Take care of the dataloading:  
+  a) ImageNet-normalization  
+  b) Long-edge based resizing (and padding) with input shape provided in `image_shape` under configs  
+  c) `BxCxHxW` format  
+  d) If any intriniscs given, adapt them accordingly to your resizing  
+2) Format the input data structure as:  
 ```python
 data = {"image": rgb, "K": intrinsics}
 predictions = model(data, {})

@@ -110,50 +110,50 @@ class UniDepthV1(nn.Module):
         self.image_shape = image_shape
 
     def forward(self, inputs, image_metas):
-        return self.infer(
-            inputs["image"], inputs.get("K"), skip_camera=inputs.get("K") is not None
-        )
-
-    def encode_decode(self, inputs, image_metas):
         rgbs = inputs["image"]
-        B, _, H, W = rgbs.shape
+        gt_intrinsics = inputs.get("K")
+        H, W = rgbs.shape[-2:]
 
+        # Encode
         encoder_outputs, cls_tokens = self.pixel_encoder(rgbs)
-        encoder_outputs = [
-            (x + y.unsqueeze(1)).contiguous()
-            for x, y in zip(encoder_outputs, cls_tokens)
-        ]
-
+        if "dino" in self.pixel_encoder.__class__.__name__.lower():
+            encoder_outputs = [
+                (x + y.unsqueeze(1)).contiguous()
+                for x, y in zip(encoder_outputs, cls_tokens)
+            ]
         inputs["encoder_outputs"] = encoder_outputs
         inputs["cls_tokens"] = cls_tokens
-        intrinsics, points_log3d, depth_features = self.pixel_decoder(
-            inputs, image_metas
-        )
-        predictions = sum(
-            [
-                F.interpolate(
-                    x.clone(),
-                    size=(H, W),
-                    mode="bilinear",
-                    align_corners=False,
-                    antialias=True,
-                )
-                for x in points_log3d
-            ]
-        ) / len(points_log3d)
 
-        ray_intrinsics = (
-            inputs["K"] if self.pixel_decoder.test_fixed_camera else intrinsics
-        )
-        _, angles = generate_rays(ray_intrinsics, (H, W), noisy=False)
-        angles = rearrange(angles, "b (h w) c -> b c h w", h=H, w=W)
-        predictions = torch.cat((angles, predictions), dim=1)
+        # Get camera infos, if any
+        if gt_intrinsics is not None:
+            rays, angles = generate_rays(
+                gt_intrinsics, self.image_shape, noisy=self.training
+            )
+            inputs["rays"] = rays
+            inputs["angles"] = angles
+            inputs["K"] = gt_intrinsics
+            self.pixel_decoder.test_fixed_camera = True # use GT camera in fwd
+            
+        # Decode
+        pred_intrinsics, predictions, _ = self.pixel_decoder(inputs, {})
 
+        # Final 3D points backprojection
+        pred_angles = generate_rays(pred_intrinsics, (H, W), noisy=False)[-1]
+        # You may want to use inputs["angles"] if available?
+        pred_angles = rearrange(pred_angles, "b (h w) c -> b c h w", h=H, w=W)
+        points_3d = torch.cat((pred_angles, predictions), dim=1)
+        points_3d = spherical_zbuffer_to_euclidean(
+            points_3d.permute(0, 2, 3, 1)
+        ).permute(0, 3, 1, 2)
+
+        # Output data, use for loss computation
         outputs = {
-            "intrinsics": intrinsics,
-            "predictions_3d": predictions,
-            "depth_features": depth_features,
+            "angles": pred_angles,
+            "intrinsics": pred_intrinsics,
+            "points": points_3d,
+            "depth": predictions[:, -1:],
         }
+        self.pixel_decoder.test_fixed_camera = False
         return outputs
 
     @torch.autocast(
@@ -202,7 +202,7 @@ class UniDepthV1(nn.Module):
                 for x, y in zip(encoder_outputs, cls_tokens)
             ]
 
-        # get data fro decoder and adapt to given camera
+        # get data for decoder and adapt to given camera
         inputs = {}
         inputs["encoder_outputs"] = encoder_outputs
         inputs["cls_tokens"] = cls_tokens
@@ -231,7 +231,7 @@ class UniDepthV1(nn.Module):
         )
 
         # final 3D points backprojection
-        intrinsics = intrinsics if intrinsics is not None else pred_intrinsics
+        intrinsics = gt_intrinsics if gt_intrinsics is not None else pred_intrinsics
         angles = generate_rays(intrinsics, (H, W), noisy=False)[-1]
         angles = rearrange(angles, "b (h w) c -> b c h w", h=H, w=W)
         points_3d = torch.cat((angles, predictions), dim=1)
