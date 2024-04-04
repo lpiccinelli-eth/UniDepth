@@ -56,7 +56,7 @@ python -m venv $VENV_DIR/$NAME
 source $VENV_DIR/$NAME/bin/activate
 
 # Install UniDepth and dependencies
-pip install -e . --index-url https://download.pytorch.org/whl/cu118
+pip install -e . --extra-index-url https://download.pytorch.org/whl/cu118
 
 # Install Pillow-SIMD (Optional)
 pip uninstall pillow
