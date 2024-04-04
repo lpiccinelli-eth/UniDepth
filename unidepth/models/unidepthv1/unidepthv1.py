@@ -136,6 +136,18 @@ class UniDepthV1(nn.Module):
             
         # Decode
         pred_intrinsics, predictions, _ = self.pixel_decoder(inputs, {})
+        predictions = sum(
+            [
+                F.interpolate(
+                    x.clone(),
+                    size=self.image_shape,
+                    mode="bilinear",
+                    align_corners=False,
+                    antialias=True,
+                )
+                for x in predictions
+            ]
+        ) / len(predictions)
 
         # Final 3D points backprojection
         pred_angles = generate_rays(pred_intrinsics, (H, W), noisy=False)[-1]
@@ -156,11 +168,6 @@ class UniDepthV1(nn.Module):
         self.pixel_decoder.test_fixed_camera = False
         return outputs
 
-    @torch.autocast(
-        enabled=True,
-        device_type="cuda" if torch.cuda.is_available() else "cpu",
-        dtype=torch.float16,
-    )
     @torch.no_grad()
     def infer(self, rgbs: torch.Tensor, intrinsics=None, skip_camera=False):
         if rgbs.ndim == 3:
