@@ -376,3 +376,6 @@ class UniDepthV1HF(UniDepthV1, PyTorchModelHubMixin):
 
         pixel_decoder = Decoder.build(config)
         super().__init__(pixel_encoder, pixel_decoder, image_shape=config["data"]["image_shape"])
+
+    def from_pretrained(self, pretrained_model_name_or_path):
+        return super(PyTorchModelHubMixin, self).from_pretrained(pretrained_model_name_or_path)
