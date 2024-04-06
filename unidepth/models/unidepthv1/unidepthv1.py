@@ -349,7 +349,7 @@ class UniDepthV1(nn.Module):
         )
 
 
-class UniDepthV1HF(PyTorchModelHubMixin, UniDepthV1):
+class UniDepthV1HF(UniDepthV1, PyTorchModelHubMixin):
     def __init__(self, config):
         mod = importlib.import_module("unidepth.models.encoder")
         pixel_encoder_factory = getattr(mod, config["model"]["pixel_encoder"]["name"])
@@ -376,3 +376,7 @@ class UniDepthV1HF(PyTorchModelHubMixin, UniDepthV1):
 
         pixel_decoder = Decoder.build(config)
         super().__init__(pixel_encoder, pixel_decoder, image_shape=config["data"]["image_shape"])
+
+    @classmethod
+    def from_pretrained(cls, *args, **kwargs):
+        return super(PyTorchModelHubMixin, cls).from_pretrained(*args, **kwargs)
