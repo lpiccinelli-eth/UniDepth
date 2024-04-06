@@ -380,4 +380,4 @@ class UniDepthV1HF(UniDepthV1, PyTorchModelHubMixin):
     @classmethod
     def from_pretrained(cls, pretrained_model_name_or_path):
         # pass to the from_pretrained of PyTorcModelHubMixin
-        return super().from_pretrained(pretrained_model_name_or_path)
+        return super(PyTorchModelHubMixin).from_pretrained(pretrained_model_name_or_path)
