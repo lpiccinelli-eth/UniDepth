@@ -349,7 +349,10 @@ class UniDepthV1(nn.Module):
         )
 
 
-class UniDepthV1HF(UniDepthV1, PyTorchModelHubMixin):
+class UniDepthV1HF(UniDepthV1, PyTorchModelHubMixin,
+                   library_name="keras-nlp",
+                   repo_url="https://github.com/lpiccinelli-eth/UniDepth",
+                   docs_url="https://github.com/lpiccinelli-eth/UniDepth?tab=readme-ov-file#unidepth-universal-monocular-metric-depth-estimation",):
     def __init__(self, config):
         mod = importlib.import_module("unidepth.models.encoder")
         pixel_encoder_factory = getattr(mod, config["model"]["pixel_encoder"]["name"])
