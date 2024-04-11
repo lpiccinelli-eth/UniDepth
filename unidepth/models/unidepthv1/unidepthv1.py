@@ -340,7 +340,13 @@ class UniDepthV1(nn.Module):
         self.image_shape = config["data"]["image_shape"]
 
 
-class UniDepthV1HF(UniDepthV1, PyTorchModelHubMixin):
+class UniDepthV1HF(
+    UniDepthV1,
+    PyTorchModelHubMixin,
+    library_name="UniDepth",
+    repo_url="https://github.com/lpiccinelli-eth/UniDepth",
+    tags=["monocular-metric-depth-estimation"]
+):
     def __init__(self, config):
         super().__init__(config)
 
