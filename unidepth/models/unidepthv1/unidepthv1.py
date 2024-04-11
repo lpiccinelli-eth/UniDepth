@@ -383,13 +383,7 @@ class UniDepthV1HF(UniDepthV1, PyTorchModelHubMixin,
         return super(PyTorchModelHubMixin, cls).from_pretrained(*args, **kwargs)
 =======
 
-class UniDepthV1HF(
-    UniDepthV1,
-    PyTorchModelHubMixin,
-    # library_name="UniDepth",
-    # repo_url="https://github.com/lpiccinelli-eth/UniDepth",
-    # tags=["monocular-metric-depth-estimation"],
-):
+class UniDepthV1HF(UniDepthV1, PyTorchModelHubMixin):
     def __init__(self, config):
         super().__init__(config)
 
