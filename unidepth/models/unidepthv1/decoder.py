@@ -314,77 +314,15 @@ class DepthHead(nn.Module):
 class Decoder(nn.Module):
     def __init__(
         self,
-        depth: int,
-        input_dims: List[int],
-        hidden_dim: int,
-        expansion: int = 4,
-        num_heads: int = 4,
-        dropout: float = 0.0,
-        depths_encoder: List[int] = [2, 4, 22, 24],
-        num_steps: int = 1,
-        layer_scale: bool = True,
+        config,
+        *args,
         **kwargs,
     ):
         super().__init__()
-        self.depth = depth
-        self.dim = hidden_dim
-        self.downsample = 4
-        self.num_heads = num_heads
-        self.num_resolutions = len(depths_encoder)
-        self.depths_encoder = depths_encoder
+        self.build(config)
+        self.apply(self._init_weights)
         self.test_fixed_camera = False
         self.skip_camera = False
-
-        self.slices_encoder_single = list(
-            zip([d - 1 for d in self.depths_encoder], self.depths_encoder)
-        )
-        self.slices_encoder_range = list(
-            zip([0, *self.depths_encoder[:-1]], self.depths_encoder)
-        )
-        cls_token_input_dims = [input_dims[-i - 1] for i in range(len(depths_encoder))]
-
-        input_dims = [input_dims[d - 1] for d in depths_encoder]
-        self.slices_encoder = self.slices_encoder_single
-
-        # adapt from encoder features, just project
-        self.input_adapter = ListAdapter(input_dims, hidden_dim)
-        self.token_adapter = ListAdapter(cls_token_input_dims, hidden_dim)
-
-        # camera layer
-        self.camera_layer = CameraHead(
-            input_dim=hidden_dim,
-            hidden_dim=hidden_dim,
-            num_heads=num_heads,
-            expansion=expansion,
-            depth=2,
-            dropout=dropout,
-            layer_scale=layer_scale,
-        )
-
-        self.depth_layer = DepthHead(
-            hidden_dim=hidden_dim,
-            num_heads=num_heads,
-            expansion=expansion,
-            depths=depth,
-            dropout=dropout,
-            camera_dim=81,
-            num_resolutions=self.num_resolutions,
-            layer_scale=layer_scale,
-        )
-
-        # transformer part
-        self.pos_embed = PositionEmbeddingSine(hidden_dim // 2, normalize=True)
-        self.level_embeds = nn.Parameter(
-            torch.randn(len(input_dims), hidden_dim), requires_grad=True
-        )
-        self.level_embed_layer = nn.Sequential(
-            nn.Linear(hidden_dim, hidden_dim),
-            nn.GELU(),
-            nn.Linear(hidden_dim, hidden_dim),
-            nn.LayerNorm(hidden_dim),
-        )
-
-        self.apply(self._init_weights)
 
     def _init_weights(self, m):
         if isinstance(m, nn.Linear):
@@ -413,7 +351,7 @@ class Decoder(nn.Module):
             [x.shape[-1] for x in cls_tokens],
             device=features.device,
             requires_grad=False,
-            dtype=torch.float32,
+            dtype=features.dtype,
         )
         cls_tokens = torch.cat(cls_tokens, dim=-1)
         cls_tokens = self.token_adapter(cls_tokens, cls_tokens_splits)
@@ -536,16 +474,69 @@ class Decoder(nn.Module):
     def no_weight_decay_keywords(self):
         return {"latents_pos", "level_embeds"}
 
-    @classmethod
-    def build(cls, config):
-        obj = cls(
-            depth=config["model"]["pixel_decoder"]["depths"],
-            input_dims=config["model"]["pixel_encoder"]["embed_dims"],
-            hidden_dim=config["model"]["pixel_decoder"]["hidden_dim"],
-            num_heads=config["model"]["num_heads"],
-            expansion=config["model"]["expansion"],
-            dropout=config["model"]["pixel_decoder"]["dropout"],
-            depths_encoder=config["model"]["pixel_encoder"]["depths"],
-            num_steps=config["model"].get("num_steps", 100000),
+    def build(self, config):
+        depth = config["model"]["pixel_decoder"]["depths"]
+        input_dims = config["model"]["pixel_encoder"]["embed_dims"]
+        hidden_dim = config["model"]["pixel_decoder"]["hidden_dim"]
+        num_heads = config["model"]["num_heads"]
+        expansion = config["model"]["expansion"]
+        dropout = config["model"]["pixel_decoder"]["dropout"]
+        depths_encoder = config["model"]["pixel_encoder"]["depths"]
+        num_steps = config["model"].get("num_steps", 100000)
+        layer_scale = 1.0
+        
+        self.depth = depth
+        self.dim = hidden_dim
+        self.downsample = 4
+        self.num_heads = num_heads
+        self.num_resolutions = len(depths_encoder)
+        self.depths_encoder = depths_encoder
+
+        self.slices_encoder_single = list(
+            zip([d - 1 for d in self.depths_encoder], self.depths_encoder)
         )
-        return obj
+        self.slices_encoder_range = list(
+            zip([0, *self.depths_encoder[:-1]], self.depths_encoder)
+        )
+        cls_token_input_dims = [input_dims[-i - 1] for i in range(len(depths_encoder))]
+
+        input_dims = [input_dims[d - 1] for d in depths_encoder]
+        self.slices_encoder = self.slices_encoder_single
+
+        # adapt from encoder features, just project
+        self.input_adapter = ListAdapter(input_dims, hidden_dim)
+        self.token_adapter = ListAdapter(cls_token_input_dims, hidden_dim)
+
+        # camera layer
+        self.camera_layer = CameraHead(
+            input_dim=hidden_dim,
+            hidden_dim=hidden_dim,
+            num_heads=num_heads,
+            expansion=expansion,
+            depth=2,
+            dropout=dropout,
+            layer_scale=layer_scale,
+        )
+
+        self.depth_layer = DepthHead(
+            hidden_dim=hidden_dim,
+            num_heads=num_heads,
+            expansion=expansion,
+            depths=depth,
+            dropout=dropout,
+            camera_dim=81,
+            num_resolutions=self.num_resolutions,
+            layer_scale=layer_scale,
+        )
+
+        # transformer part
+        self.pos_embed = PositionEmbeddingSine(hidden_dim // 2, normalize=True)
+        self.level_embeds = nn.Parameter(
+            torch.randn(len(input_dims), hidden_dim), requires_grad=True
+        )
+        self.level_embed_layer = nn.Sequential(
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.GELU(),
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.LayerNorm(hidden_dim),
+        )

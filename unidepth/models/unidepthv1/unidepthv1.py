@@ -100,17 +100,13 @@ def _postprocess(predictions, intrinsics, shapes, pads, ratio, original_shapes):
 class UniDepthV1(nn.Module):
     def __init__(
         self,
-        pixel_encoder: nn.Module,
-        pixel_decoder: nn.Module,
-        image_shape: Tuple[int, int],
+        config,
         eps: float = 1e-6,
         **kwargs,
     ):
         super().__init__()
+        self.build(config)
         self.eps = eps
-        self.pixel_encoder = pixel_encoder
-        self.pixel_decoder = pixel_decoder
-        self.image_shape = image_shape
 
     def forward(self, inputs, image_metas):
         rgbs = inputs["image"]
@@ -135,8 +131,8 @@ class UniDepthV1(nn.Module):
             inputs["rays"] = rays
             inputs["angles"] = angles
             inputs["K"] = gt_intrinsics
-            self.pixel_decoder.test_fixed_camera = True # use GT camera in fwd
-            
+            self.pixel_decoder.test_fixed_camera = True  # use GT camera in fwd
+
         # Decode
         pred_intrinsics, predictions, _ = self.pixel_decoder(inputs, {})
         predictions = sum(
@@ -315,8 +311,7 @@ class UniDepthV1(nn.Module):
         )
         return model
 
-    @classmethod
-    def build(cls, config: Dict[str, Dict[str, Any]]):
+    def build(self, config: Dict[str, Dict[str, Any]]):
         mod = importlib.import_module("unidepth.models.encoder")
         pixel_encoder_factory = getattr(mod, config["model"]["pixel_encoder"]["name"])
         pixel_encoder_config = {
@@ -340,46 +335,19 @@ class UniDepthV1(nn.Module):
         config["model"]["pixel_encoder"]["embed_dims"] = pixel_encoder_embed_dims
         config["model"]["pixel_encoder"]["depths"] = pixel_encoder.depths
 
-        pixel_decoder = Decoder.build(config)
-
-        return cls(
-            pixel_encoder=pixel_encoder,
-            pixel_decoder=pixel_decoder,
-            image_shape=config["data"]["image_shape"],
-        )
+        self.pixel_encoder = pixel_encoder
+        self.pixel_decoder = Decoder(config)
+        self.image_shape = config["data"]["image_shape"]
 
 
-class UniDepthV1HF(UniDepthV1, PyTorchModelHubMixin,
-                   library_name="UniDepth",
-                   repo_url="https://github.com/lpiccinelli-eth/UniDepth",
-                   tags=["monocular-metric-depth-estimation"]):
+class UniDepthV1HF(UniDepthV1, PyTorchModelHubMixin):
     def __init__(self, config):
-        mod = importlib.import_module("unidepth.models.encoder")
-        pixel_encoder_factory = getattr(mod, config["model"]["pixel_encoder"]["name"])
-        pixel_encoder_config = {
-            **config["training"],
-            **config["data"],
-            **config["model"]["pixel_encoder"],
-        }
-        pixel_encoder = pixel_encoder_factory(pixel_encoder_config)
-
-        config["model"]["pixel_encoder"]["patch_size"] = (
-            14 if "dino" in config["model"]["pixel_encoder"]["name"] else 16
-        )
-        pixel_encoder_embed_dims = (
-            pixel_encoder.embed_dims
-            if hasattr(pixel_encoder, "embed_dims")
-            else [getattr(pixel_encoder, "embed_dim") * 2**i for i in range(4)]
-        )
-        config["model"]["pixel_encoder"]["embed_dim"] = getattr(
-            pixel_encoder, "embed_dim"
-        )
-        config["model"]["pixel_encoder"]["embed_dims"] = pixel_encoder_embed_dims
-        config["model"]["pixel_encoder"]["depths"] = pixel_encoder.depths
-
-        pixel_decoder = Decoder.build(config)
-        super().__init__(pixel_encoder, pixel_decoder, image_shape=config["data"]["image_shape"])
+        super().__init__(config)
 
     @classmethod
-    def from_pretrained(cls, *args, **kwargs):
-        return super(PyTorchModelHubMixin, cls).from_pretrained(*args, **kwargs)
+    def from_pretrained(cls, backbone, *args, **kwargs):
+        assert (
+            backbone in MAP_BACKBONES.keys()
+        ), f"backbone must be one of {list(MAP_BACKBONES.keys())}"
+        path = f"lpiccinelli/unidepth-v1-{MAP_BACKBONES[backbone]}"
+        return super(PyTorchModelHubMixin, cls).from_pretrained(path, *args, **kwargs)

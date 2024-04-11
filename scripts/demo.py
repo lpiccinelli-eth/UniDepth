@@ -38,11 +38,16 @@ if __name__ == "__main__":
     print("Torch version:", torch.__version__)
     model = torch.hub.load(
         "lpiccinelli-eth/unidepth",
-        "UniDepthV1_ViTL14",
+        "UniDepth",
+        backbone="ViTL14", # "ConvNextL
+        version="v1", # "v2"
         pretrained=True,
         trust_repo=True,
         force_reload=True,
     )
+    # or
+    # from unidepth.models import UniDepthV1HF
+    # model = UniDepthV1HF.from_pretrained(backbone="ViTL14")
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = model.to(device)
     demo(model)

@@ -82,6 +82,7 @@ python ./scripts/demo.py
 ```
 If everything runs correctly, `demo.py` should print: `ARel: 5.13%`.
 
+If you encounter `Segmentation Fault` after running the demo, you may need to uninstall torch via pip (`pip uninstall torch`) and install the torch vestion present in [requirements](requirements.txt) with `conda`.
 
 ## Get Started
 
@@ -94,12 +95,12 @@ backbone="ViTL14"
 model = torch.hub.load("lpiccinelli-eth/UniDepth", "UniDepth", version=version, backbone=backbone, pretrained=True, trust_repo=True, force_reload=True)
 ```
 
-or
+or via HuggingFace API:
 
 ```python
-from unidepth.models import UniDepthV1
+from unidepth.models import UniDepthV1HF
 
-model = UniDepthV1.from_pretrained(backbone="ViTL14") # on CPU
+model = UniDepthV1HF.from_pretrained(backbone="ViTL14")
 ```
 
 Then you can generate the metric depth estimation and intrinsics prediction directly from RGB image only as follows:
@@ -149,27 +150,32 @@ data = {"image": rgb, "K": intrinsics}
 predictions = model(data, {})
 ```
 
-For easy-to-use, we provide our models via TorchHub and current available versions of UniDepth are with ViT-L and ConvNext-L backbones:
-
-1. UniDepthV1_ViTL14
-2. UniDepthV1_ConvNextL
-
-For improved flexibility, we provide a UniDepth wrapper where you need to specify the version and the backbone to torch.hub.load() call, such as:
+For easy-to-use, we provide our models via TorchHub where you need to specify version and backbone as:
 ```python
 torch.hub.load("lpiccinelli-eth/UniDepth", "UniDepth", version=version, backbone=backbone, pretrained=True, trust_repo=True, force_reload=True)
 ```
 
-or you can directly embed in the TorchHub model-string:
+For improved flexibility, we provide a UniDepth as HuggingFace model where you need to import the version wanted and specify the backbone:  
 ```python
-torch.hub.load("lpiccinelli-eth/UniDepth", "UniDepthV1_ViTL14", pretrained=True, trust_repo=True, force_reload=True)
+from unidepth.models import UniDepthV1HF
+
+model = UniDepthV1HF.from_pretrained(backbone=backbone)
 ```
 
-Please visit our [HuggingFace](https://huggingface.co/lpiccinelli/UniDepth) to access models weights.
+Mappings:  
+  - Version 1: version="v1"
+  - Version 2: version="v1"
+  - ViT Large: backbone="ViTL14"
+  - ConvNext Large: backbone="ConvNextL"
+
+For HuggingFace API you will need to import different UniDepth model for different versions.
+
+Please visit [HuggingFace](https://huggingface.co/lpiccinelli) to access the repo models with weights.
 
 ## Results
 
 ### Metric Depth Estimation
-The performance reported is d1 (higher is better) on zero-shot evaluation. The common split between SUN-RGBD and NYUv2 is removed from SUN-RGBD validation set for evaluation. 
+The performance reported is for UniDepthV1 model and the metrics is d1 (higher is better) on zero-shot evaluation. The common split between SUN-RGBD and NYUv2 is removed from SUN-RGBD validation set for evaluation. 
 *: non zero-shot on NYUv2 and KITTI.
 
 | Model | NYUv2 | SUN-RGBD | ETH3D | Diode (In) | IBims-1 | KITTI | Nuscenes | DDAD | 
