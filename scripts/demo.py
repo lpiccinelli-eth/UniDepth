@@ -37,8 +37,10 @@ def demo(model):
 if __name__ == "__main__":
     print("Torch version:", torch.__version__)
     model = torch.hub.load(
-        "lpiccinelli-eth/unidepth",
-        "UniDepthV1_ViTL14",
+        "lpiccinelli-eth/unidepth:feat/hf_test",
+        "UniDepth",
+        backbone="ViTL14", # "ConvNextL
+        version="v1", # "v2"
         pretrained=True,
         trust_repo=True,
         force_reload=True,

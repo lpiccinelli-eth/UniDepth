@@ -4,6 +4,7 @@ Licensed under the CC-BY NC 4.0 license (http://creativecommons.org/licenses/by-
 """
 
 from copy import deepcopy
+import importlib
 from typing import Any, Dict, Tuple
 from math import ceil
 
@@ -21,6 +22,8 @@ from unidepth.utils.misc import get_params
 from unidepth.utils.distributed import is_main_process
 from unidepth.utils.constants import IMAGENET_DATASET_MEAN, IMAGENET_DATASET_STD
 from unidepth.models.unidepthv1.decoder import Decoder
+
+from huggingface_hub import PyTorchModelHubMixin
 
 
 MAP_BACKBONES = {"ViTL14": "vitl14", "ConvNextL": "cnvnxtl"}
@@ -97,17 +100,13 @@ def _postprocess(predictions, intrinsics, shapes, pads, ratio, original_shapes):
 class UniDepthV1(nn.Module):
     def __init__(
         self,
-        pixel_encoder: nn.Module,
-        pixel_decoder: nn.Module,
-        image_shape: Tuple[int, int],
+        config,
         eps: float = 1e-6,
         **kwargs,
     ):
         super().__init__()
+        self.build(config)
         self.eps = eps
-        self.pixel_encoder = pixel_encoder
-        self.pixel_decoder = pixel_decoder
-        self.image_shape = image_shape
 
     def forward(self, inputs, image_metas):
         rgbs = inputs["image"]
@@ -132,8 +131,8 @@ class UniDepthV1(nn.Module):
             inputs["rays"] = rays
             inputs["angles"] = angles
             inputs["K"] = gt_intrinsics
-            self.pixel_decoder.test_fixed_camera = True # use GT camera in fwd
-            
+            self.pixel_decoder.test_fixed_camera = True  # use GT camera in fwd
+
         # Decode
         pred_intrinsics, predictions, _ = self.pixel_decoder(inputs, {})
         predictions = sum(
@@ -312,10 +311,7 @@ class UniDepthV1(nn.Module):
         )
         return model
 
-    @classmethod
-    def build(cls, config: Dict[str, Dict[str, Any]]):
-        import importlib
-
+    def build(self, config: Dict[str, Dict[str, Any]]):
         mod = importlib.import_module("unidepth.models.encoder")
         pixel_encoder_factory = getattr(mod, config["model"]["pixel_encoder"]["name"])
         pixel_encoder_config = {
@@ -339,10 +335,25 @@ class UniDepthV1(nn.Module):
         config["model"]["pixel_encoder"]["embed_dims"] = pixel_encoder_embed_dims
         config["model"]["pixel_encoder"]["depths"] = pixel_encoder.depths
 
-        pixel_decoder = Decoder.build(config)
+        self.pixel_encoder = pixel_encoder
+        self.pixel_decoder = Decoder(config)
+        self.image_shape = config["data"]["image_shape"]
 
-        return cls(
-            pixel_encoder=pixel_encoder,
-            pixel_decoder=pixel_decoder,
-            image_shape=config["data"]["image_shape"],
-        )
+
+class UniDepthV1HF(
+    UniDepthV1,
+    PyTorchModelHubMixin,
+    # library_name="UniDepth",
+    # repo_url="https://github.com/lpiccinelli-eth/UniDepth",
+    # tags=["monocular-metric-depth-estimation"],
+):
+    def __init__(self, config):
+        super().__init__(config)
+
+    @classmethod
+    def from_pretrained(cls, backbone, *args, **kwargs):
+        assert (
+            backbone in MAP_BACKBONES.keys()
+        ), f"backbone must be one of {list(MAP_BACKBONES.keys())}"
+        path = f"lpiccinelli/unidepth-v1-{MAP_BACKBONES[backbone]}"
+        return super(PyTorchModelHubMixin, cls).from_pretrained(path, *args, **kwargs)
