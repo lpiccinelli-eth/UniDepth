@@ -164,7 +164,7 @@ model = UniDepthV1HF.from_pretrained(backbone=backbone)
 
 Mappings:  
   - Version 1: version="v1"
-  - Version 2: version="v1"
+  - Version 2: version="v2"
   - ViT Large: backbone="ViTL14"
   - ConvNext Large: backbone="ConvNextL"
 
