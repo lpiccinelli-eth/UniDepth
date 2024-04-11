@@ -82,7 +82,7 @@ python ./scripts/demo.py
 ```
 If everything runs correctly, `demo.py` should print: `ARel: 5.13%`.
 
-If you encounter `Segmentation Fault` after running the demo, you may need to uninstall torch via pip (`pip uninstall torch`) and install the torch vestion present in [requirements](requirements.txt) with `conda`.
+If you encounter `Segmentation Fault` after running the demo, you may need to uninstall torch via pip (`pip uninstall torch`) and install the torch version present in [requirements](requirements.txt) with `conda`.
 
 ## Get Started
 
@@ -164,7 +164,7 @@ model = UniDepthV1HF.from_pretrained(backbone=backbone)
 
 Mappings:  
   - Version 1: version="v1"
-  - Version 2: version="v1"
+  - Version 2: version="v2"
   - ViT Large: backbone="ViTL14"
   - ConvNext Large: backbone="ConvNextL"
 
