@@ -29,9 +29,9 @@ def UniDepth(version="v1", backbone="ViTL14", pretrained=True):
     with open(os.path.join(repo_dir, "configs", f"config_{version}_{backbones[backbone]}.json")) as f:
         config = json.load(f)
     
-    model = MAP_VERSIONS[version].build(config)
+    model = MAP_VERSIONS[version](config)
     if pretrained:
-        path = huggingface_hub.hf_hub_download(repo_id="lpiccinelli/UniDepth", filename=f"unidepth_{version}_{backbones[backbone]}.bin", repo_type="model")
+        path = huggingface_hub.hf_hub_download(repo_id=f"lpiccinelli/unidepth-{version}-{backbones[backbone]}", filename=f"pytorch_model.bin", repo_type="model")
         info = model.load_state_dict(torch.load(path), strict=False)
         print(f"UniDepth_{version}_{backbone} is loaded with:")
         print(f"\tmissing keys: {info.missing_keys}\n\tadditional keys: {info.unexpected_keys}")
@@ -47,7 +47,7 @@ def UniDepthV1_ViTL14(pretrained):
     
     model = UniDepthV1.build(config)
     if pretrained:
-        path = huggingface_hub.hf_hub_download(repo_id="lpiccinelli/UniDepth", filename="unidepth_v1_vitl14.bin", repo_type="model")
+        path = huggingface_hub.hf_hub_download(repo_id="lpiccinelli/unidepth-v1-vitl14", filename="pytorch_model.bin", repo_type="model")
         info = model.load_state_dict(torch.load(path), strict=False)
         print("UniDepthV1_ViTL14 is loaded with:")
         print(f"\tmissing keys: {info.missing_keys}\n\tadditional keys: {info.unexpected_keys}")
@@ -62,7 +62,7 @@ def UniDepthV1_ConvNextL(pretrained):
     
     model = UniDepthV1.build(config)
     if pretrained:
-        path = huggingface_hub.hf_hub_download(repo_id="lpiccinelli/UniDepth", filename="unidepth_v1_cnvnxtl.bin", repo_type="model")
+        path = huggingface_hub.hf_hub_download(repo_id="lpiccinelli/unidepth-v1-cnvnxtl", filename="pytorch_model.bin", repo_type="model")
         info = model.load_state_dict(torch.load(path), strict=False)
         print("UniDepthV1_ConvNextL is loaded with:")
         print(f"\tmissing keys: {info.missing_keys}\n\tadditional keys: {info.unexpected_keys}")
