@@ -20,7 +20,7 @@ fvcore==0.1.5.post20221221
 gitdb
 GitPython
 h5py>=3.10.0
-huggingface-hub>=0.21.3
+huggingface-hub>=0.22.0
 idna
 imageio
 imath

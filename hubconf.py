@@ -45,7 +45,7 @@ def UniDepthV1_ViTL14(pretrained):
     with open(os.path.join(repo_dir, "configs", "config_v1_vitl14.json")) as f:
         config = json.load(f)
     
-    model = UniDepthV1.build(config)
+    model = UniDepthV1(config)
     if pretrained:
         path = huggingface_hub.hf_hub_download(repo_id="lpiccinelli/unidepth-v1-vitl14", filename="pytorch_model.bin", repo_type="model")
         info = model.load_state_dict(torch.load(path), strict=False)
@@ -60,7 +60,7 @@ def UniDepthV1_ConvNextL(pretrained):
     with open(os.path.join(repo_dir, "configs", "config_v1_cnvnxtl.json")) as f:
         config = json.load(f)
     
-    model = UniDepthV1.build(config)
+    model = UniDepthV1(config)
     if pretrained:
         path = huggingface_hub.hf_hub_download(repo_id="lpiccinelli/unidepth-v1-cnvnxtl", filename="pytorch_model.bin", repo_type="model")
         info = model.load_state_dict(torch.load(path), strict=False)

@@ -19,9 +19,8 @@
 ## News and ToDo
 
 - [ ] Release UniDepth on PyPI.
-- [ ] Release smaller models.
 - [ ] Release HuggingFace/Gradio demo.
-- [ ] Release UniDepthV2.
+- [ ] Release UniDepthV2 and smaller models (Base and Small).
 - [x] `02.04.2024`: Release UniDepth as python package.
 - [x] `01.04.2024`: Inference code and V1 models are released.
 - [x] `26.02.2024`: UniDepth is accepted at CVPR 2024!
@@ -141,17 +140,19 @@ data = {"image": rgb, "K": intrinsics}
 predictions = model(data, {})
 ```
 
-The models are available on [Hugging Face](https://huggingface.co/models?other=UniDepth). One can load a model as follows:
+Please visit [Hugging Face](https://huggingface.co/lpiccinelli) to access the repo models with weights. You can load V1 of UniDepth as:
 
 ```python
 from unidepth.models import UniDepthV1
 
-model = UniDepthV1.from_pretrained("lpiccinelli/unidepth-v1-vitl14")
+model = UniDepthV1.from_pretrained(f"lpiccinelli/unidepth-v1-{backbone}")
 ```
 
-For HuggingFace API you will need to import different UniDepth model for different versions.
+where backbones available are: "vitl14" or "cnvnxtl".
 
-Please visit [Hugging Face](https://huggingface.co/lpiccinelli) to access the repo models with weights.
+You can look into function `UniDepth` in [hubconf.py](hubconf.py) to see how to instantiate the model from local file (just provide a local `path` in line 34) and how to use TorchHub loading.
+
+
 
 ## Results
 
@@ -195,5 +196,7 @@ This software is released under Creatives Common BY-NC 4.0 license. You can view
 
 
 ## Acknowledgement
+
+We would like to express our gratitude to [@niels](https://huggingface.co/nielsr) for helping intergrating UniDepth in HuggingFace.
 
 This work is funded by Toyota Motor Europe via the research project [TRACE-Zurich](https://trace.ethz.ch) (Toyota Research on Automated Cars Europe).
