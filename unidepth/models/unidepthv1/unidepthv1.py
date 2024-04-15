@@ -97,7 +97,11 @@ def _postprocess(predictions, intrinsics, shapes, pads, ratio, original_shapes):
     return predictions, intrinsics
 
 
-class UniDepthV1(nn.Module):
+class UniDepthV1(nn.Module,
+                 PyTorchModelHubMixin,
+                 library_name="UniDepth",
+                 repo_url="https://github.com/lpiccinelli-eth/UniDepth",
+                 tags=["monocular-metric-depth-estimation"]):
     def __init__(
         self,
         config,
@@ -296,21 +300,6 @@ class UniDepthV1(nn.Module):
     def device(self):
         return next(self.parameters()).device
 
-    @classmethod
-    def from_pretrained(cls, backbone):
-        assert (
-            backbone in MAP_BACKBONES.keys()
-        ), f"backbone must be one of {list(MAP_BACKBONES.keys())}"
-        model = torch.hub.load(
-            "lpiccinelli-eth/UniDepth",
-            "UniDepth",
-            version="v1",
-            backbone=backbone,
-            pretrained=True,
-            trust_repo=True,
-        )
-        return model
-
     def build(self, config: Dict[str, Dict[str, Any]]):
         mod = importlib.import_module("unidepth.models.encoder")
         pixel_encoder_factory = getattr(mod, config["model"]["pixel_encoder"]["name"])
@@ -338,22 +327,3 @@ class UniDepthV1(nn.Module):
         self.pixel_encoder = pixel_encoder
         self.pixel_decoder = Decoder(config)
         self.image_shape = config["data"]["image_shape"]
-
-
-class UniDepthV1HF(
-    UniDepthV1,
-    PyTorchModelHubMixin,
-    library_name="UniDepth",
-    repo_url="https://github.com/lpiccinelli-eth/UniDepth",
-    tags=["monocular-metric-depth-estimation"]
-):
-    def __init__(self, config):
-        super().__init__(config)
-
-    @classmethod
-    def from_pretrained(cls, backbone, *args, **kwargs):
-        assert (
-            backbone in MAP_BACKBONES.keys()
-        ), f"backbone must be one of {list(MAP_BACKBONES.keys())}"
-        path = f"lpiccinelli/unidepth-v1-{MAP_BACKBONES[backbone]}"
-        return super(PyTorchModelHubMixin, cls).from_pretrained(path, *args, **kwargs)
