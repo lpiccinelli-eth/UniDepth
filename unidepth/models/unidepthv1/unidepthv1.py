@@ -241,7 +241,7 @@ class UniDepthV1(nn.Module,
         )
 
         # final 3D points backprojection
-        intrinsics = gt_intrinsics if gt_intrinsics is not None else pred_intrinsics
+        intrinsics = intrinsics if intrinsics is not None else pred_intrinsics
         angles = generate_rays(intrinsics, (H, W), noisy=False)[-1]
         angles = rearrange(angles, "b (h w) c -> b c h w", h=H, w=W)
         points_3d = torch.cat((angles, predictions), dim=1)
