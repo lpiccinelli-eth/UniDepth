@@ -328,7 +328,7 @@ class DinoVisionTransformer(nn.Module):
             x = blk(x)
             outputs.append(x)
             
-        if self.use_norm:
+        if self.use_norm:  
             outputs = [self.norm(out) for out in outputs]
         class_tokens = [out[:, :1] for out in outputs]
         outputs = [out[:, self.num_register_tokens + 1:] for out in outputs]

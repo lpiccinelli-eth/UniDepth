@@ -183,8 +183,8 @@ class UniDepthV1(nn.Module,
 
         # process image and intrinsiscs (if any) to match network input (slow?)
         if rgbs.max() > 5 or rgbs.dtype == torch.uint8:
-            rgbs.to(torch.float32).div(255),
-        if rgbs.min() > 0:
+            rgbs = rgbs.to(torch.float32).div(255)
+        if rgbs.min() >= 0.0 and rgbs.max() <= 1.0:
             rgbs = TF.normalize(
                 rgbs,
                 mean=IMAGENET_DATASET_MEAN,
