@@ -6,17 +6,21 @@ import json
 import torch
 import huggingface_hub
 
-from unidepth.models import UniDepthV1
+from unidepth.models import UniDepthV1, UniDepthV2
 
 
 MAP_VERSIONS = {
-    "v1": UniDepthV1
+    "v1": UniDepthV1,
+    "v2": UniDepthV2
 }
 
 MAP_BACKBONES = {
     "v1": {
         "ViTL14": "vitl14", 
         "ConvNextL": "cnvnxtl"
+    },
+    "v2": {
+        "ViTL14": "vitl14"
     }
 }
 

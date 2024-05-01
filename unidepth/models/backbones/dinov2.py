@@ -141,6 +141,7 @@ class DinoVisionTransformer(nn.Module):
         num_register_tokens=0,
         interpolate_antialias=False,
         interpolate_offset=0.1,
+        use_norm=False,
     ):
         """
         Args:
@@ -251,7 +252,8 @@ class DinoVisionTransformer(nn.Module):
             self.chunked_blocks = False
             self.blocks = nn.ModuleList(blocks_list)
 
-        # self.norm = norm_layer(embed_dim)
+        self.norm = norm_layer(embed_dim)
+        self.use_norm = use_norm
         self.head = nn.Identity()
         self.mask_token = nn.Parameter(torch.zeros(1, embed_dim))
         self.init_weights()
@@ -321,19 +323,18 @@ class DinoVisionTransformer(nn.Module):
         shapes = [val // self.patch_size for val in x.shape[-2:]]
         batch_size = x.shape[0]
         x = self.prepare_tokens_with_masks(x, masks)
-        output, cls_tokens = [], []
-
+        outputs = []
         for i, blk in enumerate(self.blocks):
             x = blk(x)
-            cls_token = x[:, :1]
+            outputs.append(x)
+            
+        if self.use_norm:
+            outputs = [self.norm(out) for out in outputs]
+        class_tokens = [out[:, :1] for out in outputs]
+        outputs = [out[:, self.num_register_tokens + 1:] for out in outputs]
+        outputs = [out.reshape(batch_size, *shapes, -1) for out in outputs]
 
-            out = x[:, self.num_register_tokens + 1 :]
-            # was like this before, add cls to dense features
-            # out = out + cls_token
-
-            output.append(out.view(batch_size, *shapes, -1))
-            cls_tokens.append(cls_token)
-        return (output, cls_tokens)
+        return (outputs, class_tokens)
 
     def get_params(self, lr, wd, ld, *args, **kwargs):
         encoder_p, encoder_lr = get_parameter_groups(self, lr, wd, ld)
@@ -447,6 +448,7 @@ def _make_dinov2_model(
     output_idx: Sequence[int] = [],
     num_register_tokens: int = 0,
     drop_path_rate: float = 0.0,
+    use_norm: bool = False,
     **kwargs,
 ):
     model_name = _make_dinov2_model_name(arch_name, patch_size)
@@ -461,6 +463,7 @@ def _make_dinov2_model(
         output_idx=output_idx,
         drop_path_rate=drop_path_rate,
         num_register_tokens=num_register_tokens,
+        use_norm=use_norm,
     )
     vit_kwargs.update(**kwargs)
     model = eval(arch_name)(**vit_kwargs)

@@ -1,0 +1,32 @@
+{
+    "generic": {
+        "seed": 13,
+        "deterministic": true
+    },
+    "training": {},
+    "data": {
+        "image_shape": [420, 560],
+        "shape_constraints": {
+            "ratio_bounds": [0.66, 2.0],
+            "pixels_bounds": [1800, 2400],
+            "patch_size": 14
+        }
+    },
+    "model": {
+        "name": "UniDepthV2",
+        "num_heads": 8,
+        "expansion": 4,
+        "pixel_decoder": {
+            "hidden_dim": 512,
+            "depths": [6, 0, 0],
+            "dropout": 0.0
+        },
+        "pixel_encoder": {
+            "name": "dinov2_vitl14",
+            "pretrained": null,
+            "use_norm": true,
+            "stacking_fn": "last",
+            "output_idx": [21,22,23,24]
+        }
+    }
+}
