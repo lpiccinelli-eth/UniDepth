@@ -168,9 +168,9 @@ class DinoVisionTransformer(nn.Module):
         super().__init__()
         norm_layer = partial(nn.LayerNorm, eps=1e-6)
 
-        self.num_features = self.embed_dim = (
-            embed_dim  # num_features for consistency with other models
-        )
+        self.num_features = (
+            self.embed_dim
+        ) = embed_dim  # num_features for consistency with other models
         self.embed_dims = [embed_dim] * output_idx[-1]
         self.num_tokens = 1
         self.n_blocks = depth
@@ -327,11 +327,11 @@ class DinoVisionTransformer(nn.Module):
         for i, blk in enumerate(self.blocks):
             x = blk(x)
             outputs.append(x)
-            
-        if self.use_norm:  
+
+        if self.use_norm:
             outputs = [self.norm(out) for out in outputs]
         class_tokens = [out[:, :1] for out in outputs]
-        outputs = [out[:, self.num_register_tokens + 1:] for out in outputs]
+        outputs = [out[:, self.num_register_tokens + 1 :] for out in outputs]
         outputs = [out.reshape(batch_size, *shapes, -1) for out in outputs]
 
         return (outputs, class_tokens)

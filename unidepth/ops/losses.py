@@ -165,7 +165,7 @@ class SILog(nn.Module):
         interpolate: bool = True,
         scale_inv: torch.Tensor | None = None,
         ss_inv: torch.Tensor | None = None,
-        **kwargs
+        **kwargs,
     ) -> torch.Tensor:
         if interpolate:
             input = F.interpolate(
@@ -249,7 +249,7 @@ class MSE(nn.Module):
         target: torch.Tensor,
         mask: torch.Tensor | None = None,
         batch_mask: torch.Tensor | None = None,
-        **kwargs
+        **kwargs,
     ) -> torch.Tensor:
         input = input[..., : target.shape[-1]]  # B N C or B H W C
         error = self.input_fn(input + self.eps) - self.input_fn(target + self.eps)

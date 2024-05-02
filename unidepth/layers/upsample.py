@@ -18,7 +18,7 @@ class ConvUpsample(nn.Module):
         expansion: int = 4,
         layer_scale: float = 1.0,
         kernel_size: int = 7,
-        **kwargs
+        **kwargs,
     ):
         super().__init__()
         self.convs = nn.ModuleList([])
@@ -53,7 +53,7 @@ class ConvUpsampleShuffle(nn.Module):
         expansion: int = 4,
         layer_scale: float = 1.0,
         kernel_size: int = 7,
-        **kwargs
+        **kwargs,
     ):
         super().__init__()
         self.convs = nn.ModuleList([])

@@ -95,11 +95,13 @@ def _postprocess(predictions, intrinsics, shapes, pads, ratio, original_shapes):
     return predictions, intrinsics
 
 
-class UniDepthV1(nn.Module,
-                 PyTorchModelHubMixin,
-                 library_name="UniDepth",
-                 repo_url="https://github.com/lpiccinelli-eth/UniDepth",
-                 tags=["monocular-metric-depth-estimation"]):
+class UniDepthV1(
+    nn.Module,
+    PyTorchModelHubMixin,
+    library_name="UniDepth",
+    repo_url="https://github.com/lpiccinelli-eth/UniDepth",
+    tags=["monocular-metric-depth-estimation"],
+):
     def __init__(
         self,
         config,

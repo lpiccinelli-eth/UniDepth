@@ -19,7 +19,13 @@ from unidepth.utils.geometric import (
     generate_rays,
     spherical_zbuffer_to_euclidean,
 )
-from unidepth.utils.misc import max_stack, mean_stack, first_stack, last_stack, softmax_stack
+from unidepth.utils.misc import (
+    max_stack,
+    mean_stack,
+    first_stack,
+    last_stack,
+    softmax_stack,
+)
 from unidepth.utils.distributed import is_main_process
 from unidepth.utils.constants import IMAGENET_DATASET_MEAN, IMAGENET_DATASET_STD
 from unidepth.models.unidepthv2.decoder import Decoder
@@ -37,9 +43,11 @@ STACKING_FNS = {
 # inference helpers
 def _check_ratio(image_ratio, ratio_bounds):
     ratio_bounds = sorted(ratio_bounds)
-    if ratio_bounds is not None and (image_ratio < ratio_bounds[0] or image_ratio > ratio_bounds[1]):
+    if ratio_bounds is not None and (
+        image_ratio < ratio_bounds[0] or image_ratio > ratio_bounds[1]
+    ):
         warnings.warn(
-            f"Input image ratio ({image_ratio:.3f} is out of distribution: "\
+            f"Input image ratio ({image_ratio:.3f} is out of distribution: "
             f"{ratio_bounds}. This may lead to unexpected results."
         )
 
@@ -51,8 +59,8 @@ def _get_closes_num_pixels(image_shape, pixels_bounds):
     num_pixels = max(min(num_pixels, pixels_bounds[1]), pixels_bounds[0])
     if num_pixels < pixels_bounds[1]:
         warnings.warn(
-            f"Number of pixels ({num_pixels}) is lower than maximum: "\
-            f"{pixels_bounds[1]}. You can force it by setting "\
+            f"Number of pixels ({num_pixels}) is lower than maximum: "
+            f"{pixels_bounds[1]}. You can force it by setting "
             f"`shape_constraints` in UniDepthV2 `build` method."
         )
     return num_pixels
@@ -62,11 +70,17 @@ def _shapes(image_shape, shape_constraints):
     h, w = image_shape
     image_ratio = w / h
     _check_ratio(image_ratio, shape_constraints["ratio_bounds"])
-    num_pixels = _get_closes_num_pixels((h / shape_constraints["patch_size"], w / shape_constraints["patch_size"]), shape_constraints["pixels_bounds"])
+    num_pixels = _get_closes_num_pixels(
+        (h / shape_constraints["patch_size"], w / shape_constraints["patch_size"]),
+        shape_constraints["pixels_bounds"],
+    )
     h = ceil((num_pixels / image_ratio) ** 0.5 - 0.5)
-    w = ceil(h * image_ratio - 0.5) 
+    w = ceil(h * image_ratio - 0.5)
     ratio = h / image_shape[0] * shape_constraints["patch_size"]
-    return (h * shape_constraints["patch_size"], w * shape_constraints["patch_size"]), ratio
+    return (
+        h * shape_constraints["patch_size"],
+        w * shape_constraints["patch_size"],
+    ), ratio
 
 
 def _preprocess(rgbs, intrinsics, shapes, ratio):
@@ -82,9 +96,15 @@ def _preprocess(rgbs, intrinsics, shapes, ratio):
 
 
 def _postprocess(outs, ratio, original_shapes):
-    outs["depth"] = F.interpolate(outs["depth"], size=original_shapes, mode="nearest-exact")
-    outs["depth_ssi"] = F.interpolate(outs["depth_ssi"], size=original_shapes, mode="nearest-exact")
-    outs["confidence"] = F.interpolate(outs["confidence"], size=original_shapes, mode="bilinear", antialias=True)
+    outs["depth"] = F.interpolate(
+        outs["depth"], size=original_shapes, mode="nearest-exact"
+    )
+    outs["depth_ssi"] = F.interpolate(
+        outs["depth_ssi"], size=original_shapes, mode="nearest-exact"
+    )
+    outs["confidence"] = F.interpolate(
+        outs["confidence"], size=original_shapes, mode="bilinear", antialias=True
+    )
     outs["K"][:, 0, 0] = outs["K"][:, 0, 0] / ratio
     outs["K"][:, 1, 1] = outs["K"][:, 1, 1] / ratio
     outs["K"][:, 0, 2] = outs["K"][:, 0, 2] / ratio
@@ -92,11 +112,13 @@ def _postprocess(outs, ratio, original_shapes):
     return outs
 
 
-class UniDepthV2(nn.Module,
-                 PyTorchModelHubMixin,
-                 library_name="UniDepth",
-                 repo_url="https://github.com/lpiccinelli-eth/UniDepth",
-                 tags=["monocular-metric-depth-estimation"]):
+class UniDepthV2(
+    nn.Module,
+    PyTorchModelHubMixin,
+    library_name="UniDepth",
+    repo_url="https://github.com/lpiccinelli-eth/UniDepth",
+    tags=["monocular-metric-depth-estimation"],
+):
     def __init__(
         self,
         config,
@@ -116,10 +138,16 @@ class UniDepthV2(nn.Module,
             inputs["angles"] = angles
 
         features, tokens = self.pixel_encoder(inputs[f"image"])
-        
+
         cls_tokens = [x.contiguous() for x in tokens]
-        features = [self.stacking_fn(features[i:j]).contiguous() for i, j in self.slices_encoder_range]
-        tokens = [self.stacking_fn(tokens[i:j]).contiguous() for i, j in self.slices_encoder_range]
+        features = [
+            self.stacking_fn(features[i:j]).contiguous()
+            for i, j in self.slices_encoder_range
+        ]
+        tokens = [
+            self.stacking_fn(tokens[i:j]).contiguous()
+            for i, j in self.slices_encoder_range
+        ]
         global_tokens = [cls_tokens[i] for i in [-2, -1]]
         camera_tokens = [cls_tokens[i] for i in [-3, -2, -1]] + [tokens[-2]]
 
@@ -130,12 +158,37 @@ class UniDepthV2(nn.Module,
 
         outs = self.pixel_decoder(inputs, image_metas)
 
-        angles = rearrange(generate_rays(outs["K"], (H, W), noisy=False)[-1], "b (h w) c -> b c h w", h=H, w=W)
-        predictions = F.interpolate(outs["depth"], size=(H, W), mode="bilinear", align_corners=False, antialias=True)
-        predictions_normalized = F.interpolate(outs["depth_ssi"], size=(H, W), mode="bilinear", align_corners=False, antialias=True)
-        confidence = F.interpolate(outs["confidence"], size=(H, W), mode="bilinear", align_corners=False, antialias=True)
+        angles = rearrange(
+            generate_rays(outs["K"], (H, W), noisy=False)[-1],
+            "b (h w) c -> b c h w",
+            h=H,
+            w=W,
+        )
+        predictions = F.interpolate(
+            outs["depth"],
+            size=(H, W),
+            mode="bilinear",
+            align_corners=False,
+            antialias=True,
+        )
+        predictions_normalized = F.interpolate(
+            outs["depth_ssi"],
+            size=(H, W),
+            mode="bilinear",
+            align_corners=False,
+            antialias=True,
+        )
+        confidence = F.interpolate(
+            outs["confidence"],
+            size=(H, W),
+            mode="bilinear",
+            align_corners=False,
+            antialias=True,
+        )
         predictions_3d = torch.cat((angles, predictions), dim=1)
-        predictions_3d = spherical_zbuffer_to_euclidean(predictions_3d.permute(0, 2, 3, 1)).permute(0, 3, 1, 2)
+        predictions_3d = spherical_zbuffer_to_euclidean(
+            predictions_3d.permute(0, 2, 3, 1)
+        ).permute(0, 3, 1, 2)
 
         # so far just deepest features are projected and loss-ed
         outputs = {
@@ -178,13 +231,19 @@ class UniDepthV2(nn.Module,
             (h, w),
             ratio,
         )
-        
+
         # run encoder
         features, tokens = self.pixel_encoder(rgbs)
-        
+
         cls_tokens = [x.contiguous() for x in tokens]
-        features = [self.stacking_fn(features[i:j]).contiguous() for i, j in self.slices_encoder_range]
-        tokens = [self.stacking_fn(tokens[i:j]).contiguous() for i, j in self.slices_encoder_range]
+        features = [
+            self.stacking_fn(features[i:j]).contiguous()
+            for i, j in self.slices_encoder_range
+        ]
+        tokens = [
+            self.stacking_fn(tokens[i:j]).contiguous()
+            for i, j in self.slices_encoder_range
+        ]
         global_tokens = [cls_tokens[i] for i in [-2, -1]]
         camera_tokens = [cls_tokens[i] for i in [-3, -2, -1]] + [tokens[-2]]
 
@@ -215,7 +274,9 @@ class UniDepthV2(nn.Module,
         angles = generate_rays(intrinsics, (H, W))[-1]
         angles = rearrange(angles, "b (h w) c -> b c h w", h=H, w=W)
         points_3d = torch.cat((angles, depth), dim=1)
-        points_3d = spherical_zbuffer_to_euclidean(points_3d.permute(0, 2, 3, 1)).permute(0, 3, 1, 2)
+        points_3d = spherical_zbuffer_to_euclidean(
+            points_3d.permute(0, 2, 3, 1)
+        ).permute(0, 3, 1, 2)
 
         outputs = {
             "K": pred_intrinsics,
@@ -223,7 +284,7 @@ class UniDepthV2(nn.Module,
             "depth": depth,
             "depth_ssi": depth_ssi,
             "scale_shift": scale_shift,
-            "confidence": confidence
+            "confidence": confidence,
         }
         return outputs
 
@@ -259,13 +320,17 @@ class UniDepthV2(nn.Module,
         }
         pixel_encoder = pixel_encoder_factory(pixel_encoder_config)
 
-        config["model"]["pixel_encoder"]["patch_size"] = 14 if "dino" in config["model"]["pixel_encoder"]["name"] else 16
+        config["model"]["pixel_encoder"]["patch_size"] = (
+            14 if "dino" in config["model"]["pixel_encoder"]["name"] else 16
+        )
         pixel_encoder_embed_dims = (
             pixel_encoder.embed_dims
             if hasattr(pixel_encoder, "embed_dims")
             else [getattr(pixel_encoder, "embed_dim") * 2**i for i in range(4)]
         )
-        config["model"]["pixel_encoder"]["embed_dim"] = getattr(pixel_encoder, "embed_dim")
+        config["model"]["pixel_encoder"]["embed_dim"] = getattr(
+            pixel_encoder, "embed_dim"
+        )
         config["model"]["pixel_encoder"]["embed_dims"] = pixel_encoder_embed_dims
         config["model"]["pixel_encoder"]["depths"] = pixel_encoder.depths
 
@@ -274,10 +339,14 @@ class UniDepthV2(nn.Module,
         self.pixel_encoder = pixel_encoder
         self.pixel_decoder = pixel_decoder
         stacking_fn = config["model"]["pixel_encoder"]["stacking_fn"]
-        assert stacking_fn in STACKING_FNS, f"Stacking function {stacking_fn} not found in {STACKING_FNS.keys()}"
+        assert (
+            stacking_fn in STACKING_FNS
+        ), f"Stacking function {stacking_fn} not found in {STACKING_FNS.keys()}"
         self.stacking_fn = STACKING_FNS[stacking_fn]
 
-        self.slices_encoder_range = list(zip([0, *pixel_encoder.depths[:-1]], pixel_encoder.depths))
+        self.slices_encoder_range = list(
+            zip([0, *pixel_encoder.depths[:-1]], pixel_encoder.depths)
+        )
         self.shape_constraints = config["data"]["shape_constraints"]
 
         # Force your own num pixels based on cost and performance!

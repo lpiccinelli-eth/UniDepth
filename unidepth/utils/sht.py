@@ -684,7 +684,9 @@ def rsh_cart_7(xyz: torch.Tensor):
             -0.707162732524596
             * y
             * (7.0 * x2**3 + 21.0 * x2 * y4 - 35.0 * x4 * y2 - y2**3),
-            2.6459606618019 * z * (6.0 * x**4 * xy - 20.0 * xy**3 + 6.0 * xy * y**4),
+            2.6459606618019
+            * z
+            * (6.0 * x**4 * xy - 20.0 * xy**3 + 6.0 * xy * y**4),
             9.98394571852353e-5
             * y
             * (5197.5 - 67567.5 * z2)
@@ -1007,7 +1009,9 @@ def rsh_cart_8(xyz: torch.Tensor):
             -0.707162732524596
             * y
             * (7.0 * x2**3 + 21.0 * x2 * y4 - 35.0 * x4 * y2 - y2**3),
-            2.6459606618019 * z * (6.0 * x**4 * xy - 20.0 * xy**3 + 6.0 * xy * y**4),
+            2.6459606618019
+            * z
+            * (6.0 * x**4 * xy - 20.0 * xy**3 + 6.0 * xy * y**4),
             9.98394571852353e-5
             * y
             * (5197.5 - 67567.5 * z2)
@@ -1626,9 +1630,9 @@ class SphHarm(torch.nn.Module):
             torch.einsum("i,j->ij", self.f_b, x),
             p[(diag_indices[0], diag_indices[1])],
         )  # p[torch.diag_indices(l_max)])
-        p[(diag_indices[0][: self.l_max], diag_indices[1][: self.l_max] + 1)] = (
-            p_offdiag
-        )
+        p[
+            (diag_indices[0][: self.l_max], diag_indices[1][: self.l_max] + 1)
+        ] = p_offdiag
 
         # Compute the remaining entries with recurrence.
         if self.l_max > 1:
