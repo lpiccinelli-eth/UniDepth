@@ -3,7 +3,7 @@ import numpy as np
 from PIL import Image
 
 from unidepth.utils import colorize, image_grid
-from unidepth.models import UniDepthV1
+from unidepth.models import UniDepthV1, UniDepthV2
 
 
 def demo(model):

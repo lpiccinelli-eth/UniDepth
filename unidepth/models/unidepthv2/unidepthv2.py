@@ -156,6 +156,10 @@ class UniDepthV2(nn.Module,
             intrinsics = intrinsics.unsqueeze(0)
         B, _, H, W = rgbs.shape
 
+        rgbs = rgbs.to(self.device)
+        if intrinsics is not None:
+            intrinsics = intrinsics.to(self.device)
+
         # process image and intrinsiscs (if any) to match network input (slow?)
         if rgbs.max() > 5 or rgbs.dtype == torch.uint8:
             rgbs = rgbs.to(torch.float32).div(255)
