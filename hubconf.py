@@ -22,7 +22,7 @@ BACKBONES = {
 
 def UniDepth(version="v1", backbone="ViTL14", pretrained=True):
     assert version in MAP_VERSIONS.keys(), f"version must be one of {list(MAP_VERSIONS.keys())}"
-    assert backbone in BACKBONES[version], f"backbone must be one of {list(BACKBONES[version])}"
+    assert backbone in BACKBONES[version], f"backbone for current version ({version}) must be one of {list(BACKBONES[version])}"
     repo_dir = os.path.dirname(os.path.realpath(__file__))
     with open(os.path.join(repo_dir, "configs", f"config_{version}_{backbone}.json")) as f:
         config = json.load(f)

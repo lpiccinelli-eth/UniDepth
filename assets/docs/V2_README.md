@@ -13,6 +13,8 @@ max_pixels = model.shape_constraints["pixels_bound"][1]
 model.shape_constraints["pixels_bound"] = [max_pixels, max_pixels]
 ```
 
+Infer method will use interpolation mode expressed by the attribute `self.interpolation_mode`, default is `nearest-exact`.
+
 
 ### Confidence output  
 
@@ -21,7 +23,7 @@ The model outputs confidence in the range `[0, 1]` and represent the ARel error 
 
 ### Decoder design predicting separately scale-shift invariant depth and scale and shift to allow more diverse training. 
 
-The decoder presents three heads: `Camera`, `Depth` and `Global`. `Depth` head predicts scale and shift invariant depth: exponential of normalized values. `Global` head predicts the scale and shift to matche the `Depth` head output to metric. With such design we can mix seamlessly dataset with metric GT, scale-invariant (i.e., SfM) or scale-shift invariant by turning down the gradient to the `Global` head when GT is either scale or shift invariant. This allows to scale up the training variety. On the other hand, more diversity is linked to lower GT quality, thus introducing artifacts...
+The decoder presents three heads: `Camera`, `Depth` and `Global`. `Depth` head predicts scale and shift invariant depth: exponential of normalized values. `Global` head predicts the scale and shift to match the `Depth` head output to metric. With such design we can mix seamlessly dataset with metric GT, scale-invariant (i.e., SfM) or scale-shift invariant by turning down the gradient to the `Global` head when GT is either scale or shift invariant. This allows to scale up the training variety. Version 1 and 2 present similar performance but output of version 2 may look more nervous because more diversity is linked to lower GT quality, thus introducing artifacts... 
 
 
 ### Faster inference  

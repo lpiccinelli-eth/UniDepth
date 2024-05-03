@@ -165,9 +165,9 @@ where backbones available are "vitl14" and "cnvnxtl", and versions available are
 You can look into function `UniDepth` in [hubconf.py](hubconf.py) to see how to instantiate the model from local file: provide a local `path` in line 34.
 
 
-### UniDepthV2
+## UniDepthV2
 
-Visit [UniDepthV2 ReadMe](unidepth/models/unidepthv2/README.md) for a more detailed changelog.  
+Visit [UniDepthV2 ReadMe](assets/docs/V2_README.md) for a more detailed changelog. To summarize the main differences are:  
 - Input shape and ratio flexibility.  
 - Confidence output  
 - Decoder design  

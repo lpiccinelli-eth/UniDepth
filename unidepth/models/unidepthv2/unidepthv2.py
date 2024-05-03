@@ -95,12 +95,12 @@ def _preprocess(rgbs, intrinsics, shapes, ratio):
     return rgbs, None
 
 
-def _postprocess(outs, ratio, original_shapes):
+def _postprocess(outs, ratio, original_shapes, mode="nearest-exact"):
     outs["depth"] = F.interpolate(
-        outs["depth"], size=original_shapes, mode="nearest-exact"
+        outs["depth"], size=original_shapes, mode=mode
     )
     outs["depth_ssi"] = F.interpolate(
-        outs["depth_ssi"], size=original_shapes, mode="nearest-exact"
+        outs["depth_ssi"], size=original_shapes, mode=mode
     )
     outs["confidence"] = F.interpolate(
         outs["confidence"], size=original_shapes, mode="bilinear", antialias=True
@@ -127,6 +127,7 @@ class UniDepthV2(
     ):
         super().__init__()
         self.build(config)
+        self.interpolation_mode = "nearest-exact"
         self.eps = eps
 
     def forward(self, inputs, image_metas):
@@ -262,7 +263,7 @@ class UniDepthV2(
 
         outs = self.pixel_decoder(inputs, {})
         # undo the reshaping and get original image size (slow)
-        outs = _postprocess(outs, ratio, (H, W))
+        outs = _postprocess(outs, ratio, (H, W), mode=self.interpolation_mode)
         pred_intrinsics = outs["K"]
         depth = outs["depth"]
         depth_ssi = outs["depth_ssi"]
