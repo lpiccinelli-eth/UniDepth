@@ -24,7 +24,7 @@
 - [x] `01.05.2024`: Release UniDepthV2.
 - [x] `02.04.2024`: Release UniDepth as python package.
 - [x] `01.04.2024`: Inference code and V1 models are released.
-- [x] `26.02.2024`: UniDepth is accepted at CVPR 2024!
+- [x] `26.02.2024`: UniDepth is accepted at CVPR 2024! (Highlight :star:)
 
 
 ## Zero-Shot Visualization
