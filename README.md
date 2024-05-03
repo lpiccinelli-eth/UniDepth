@@ -161,17 +161,18 @@ model = torch.hub.load("lpiccinelli-eth/UniDepth", "UniDepth", version=version, 
 ```
 
 where backbones available are "vitl14" and "cnvnxtl", and versions available are "v1" and "v2".
-
 You can look into function `UniDepth` in [hubconf.py](hubconf.py) to see how to instantiate the model from local file: provide a local `path` in line 34.
 
 
 ## UniDepthV2
 
-Visit [UniDepthV2 ReadMe](assets/docs/V2_README.md) for a more detailed changelog. To summarize the main differences are:  
+Visit [UniDepthV2 ReadMe](assets/docs/V2_README.md) for a more detailed changelog.
+To summarize the main differences are:  
 - Input shape and ratio flexibility.  
 - Confidence output  
 - Decoder design  
 - Faster inference  
+- ONNX support
 
 
 ## Results

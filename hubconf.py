@@ -20,7 +20,7 @@ BACKBONES = {
 }
 
 
-def UniDepth(version="v1", backbone="ViTL14", pretrained=True):
+def UniDepth(version="v2", backbone="vitl14", pretrained=True):
     assert version in MAP_VERSIONS.keys(), f"version must be one of {list(MAP_VERSIONS.keys())}"
     assert backbone in BACKBONES[version], f"backbone for current version ({version}) must be one of {list(BACKBONES[version])}"
     repo_dir = os.path.dirname(os.path.realpath(__file__))
@@ -32,7 +32,8 @@ def UniDepth(version="v1", backbone="ViTL14", pretrained=True):
         path = huggingface_hub.hf_hub_download(repo_id=f"lpiccinelli/unidepth-{version}-{backbone}", filename=f"pytorch_model.bin", repo_type="model")
         info = model.load_state_dict(torch.load(path), strict=False)
         print(f"UniDepth_{version}_{backbone} is loaded with:")
-        print(f"\tmissing keys: {info.missing_keys}\n\tadditional keys: {info.unexpected_keys}")
+        print(f"\t missing keys: {info.missing_keys}")
+        print(f"\t additional keys: {info.unexpected_keys}")
 
     return model
 

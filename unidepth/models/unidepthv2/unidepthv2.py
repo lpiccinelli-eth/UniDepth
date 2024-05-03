@@ -1,8 +1,3 @@
-"""
-Author: Luigi Piccinelli
-Licensed under the CC-BY NC 4.0 license (http://creativecommons.org/licenses/by-nc/4.0/)
-"""
-
 import warnings
 from math import ceil
 from copy import deepcopy
@@ -96,9 +91,7 @@ def _preprocess(rgbs, intrinsics, shapes, ratio):
 
 
 def _postprocess(outs, ratio, original_shapes, mode="nearest-exact"):
-    outs["depth"] = F.interpolate(
-        outs["depth"], size=original_shapes, mode=mode
-    )
+    outs["depth"] = F.interpolate(outs["depth"], size=original_shapes, mode=mode)
     outs["depth_ssi"] = F.interpolate(
         outs["depth_ssi"], size=original_shapes, mode=mode
     )
@@ -191,7 +184,6 @@ class UniDepthV2(
             predictions_3d.permute(0, 2, 3, 1)
         ).permute(0, 3, 1, 2)
 
-        # so far just deepest features are projected and loss-ed
         outputs = {
             "K": outs["K"],
             "depth": predictions,
@@ -200,7 +192,7 @@ class UniDepthV2(
             "scale_shift": outs["scale_shift"],
             "points": predictions_3d,
         }
-        return outputs, {}
+        return outputs
 
     @torch.no_grad()
     def infer(self, rgbs: torch.Tensor, intrinsics=None):

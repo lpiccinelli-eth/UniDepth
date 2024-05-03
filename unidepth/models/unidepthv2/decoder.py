@@ -210,9 +210,7 @@ class DepthHead(nn.Module):
                     )
                 )
             self.process_layers.append(blk_lst)
-            self.rays_layers.append(
-                nn.Linear(camera_dim + 3, hidden_dim // int(2**i))
-            )
+            self.rays_layers.append(nn.Linear(camera_dim + 3, hidden_dim // int(2**i)))
             self.ups.append(
                 ConvUpsampleShuffle(
                     hidden_dim // int(2**i),
@@ -292,13 +290,13 @@ class DepthHead(nn.Module):
                 x,
                 size=outs[0].shape[-2:],
                 mode="bilinear",
-                align_corners=False,
-                antialias=True,
             )
             for x in outs
         )
         out = out / len(outs)
-        out = F.layer_norm(out.float(), out.shape[1:])
+        # jit complains, fix as list (loose dyn input)
+        out_shapes = [int(s) for s in out.shape[1:]]
+        out = F.layer_norm(out.float(), out_shapes)
         out = out.clamp(-10.0, 10.0).exp().to(dtype, non_blocking=True)
 
         for i, (norm, out_layer, features) in enumerate(
@@ -316,8 +314,6 @@ class DepthHead(nn.Module):
                 x,
                 size=confidences[0].shape[-2:],
                 mode="bilinear",
-                align_corners=False,
-                antialias=True,
             )
             for x in confidences
         )

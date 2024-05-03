@@ -147,6 +147,7 @@ def dinov2_vits14(config, pretrained: bool = True, **kwargs):
         drop_path_rate=config.get("drop_path", 0.0),
         num_register_tokens=config.get("num_register_tokens", 0),
         use_norm=config.get("use_norm", False),
+        export=config.get("export", False),
         **kwargs,
     )
     return vit
@@ -164,6 +165,7 @@ def dinov2_vitb14(config, pretrained: bool = True, **kwargs):
         drop_path_rate=config.get("drop_path", 0.0),
         num_register_tokens=config.get("num_register_tokens", 0),
         use_norm=config.get("use_norm", False),
+        export=config.get("export", False),
         **kwargs,
     )
     return vit
@@ -181,23 +183,7 @@ def dinov2_vitl14(config, pretrained: str = "", **kwargs):
         drop_path_rate=config.get("drop_path", 0.0),
         num_register_tokens=config.get("num_register_tokens", 0),
         use_norm=config.get("use_norm", False),
-        **kwargs,
-    )
-    return vit
-
-
-def dinov2_vitg14(config, pretrained: bool = True, **kwargs):
-    """
-    DINOv2 ViT-g/14 model (optionally) pretrained on the LVD-142M dataset.
-    """
-    vit = _make_dinov2_model(
-        arch_name="vit_giant2",
-        ffn_layer="swiglufused",
-        pretrained=pretrained,
-        output_idx=config.get("output_idx", [10, 20, 30, 40]),
-        checkpoint=config.get("use_checkpoint", False),
-        drop_path_rate=config.get("drop_path", 0.0),
-        num_register_tokens=config.get("num_register_tokens", 0),
+        export=config.get("export", False),
         **kwargs,
     )
     return vit
