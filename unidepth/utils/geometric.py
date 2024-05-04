@@ -169,8 +169,7 @@ def project_points(
     # Normalize projected points: (u v w) -> (u / w, v / w, 1)
     points_2d = points_2d[..., :2] / points_2d[..., 2:]
 
-    # To pixels (rounding!!!), no int as it breaks gradient
-    points_2d = points_2d.round()
+    points_2d = points_2d.int()
 
     # points need to be inside the image (can it diverge onto all points out???)
     valid_mask = (
