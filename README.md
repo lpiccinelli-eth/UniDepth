@@ -146,9 +146,8 @@ Please visit [Hugging Face](https://huggingface.co/lpiccinelli) to access the re
 ```python
 from unidepth.models import UniDepthV1, UniDepthV2
 
-model = UniDepthV1.from_pretrained(f"lpiccinelli/unidepth-v1-{backbone}")
-# if you want to load V2 from HuggingFace:
-# model = UniDepthV2.from_pretrained(f"lpiccinelli/unidepth-v2-{backbone}")
+model_v1 = UniDepthV1.from_pretrained(f"lpiccinelli/unidepth-v1-{backbone}")
+model_v2 = UniDepthV2.from_pretrained(f"lpiccinelli/unidepth-v2-{backbone}")
 ```
 
 In addition, we provide loading from TorchHub as:
