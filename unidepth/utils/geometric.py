@@ -9,6 +9,7 @@ import torch
 from torch.nn import functional as F
 
 
+@torch.jit.script
 def generate_rays(
     camera_intrinsics: torch.Tensor, image_shape: Tuple[int, int], noisy: bool = False
 ):
@@ -30,7 +31,11 @@ def generate_rays(
     pixel_coords = pixel_coords + 0.5
 
     # Calculate ray directions
-    intrinsics_inv = torch.inverse(camera_intrinsics.float()).to(dtype)  # (B, 3, 3)
+    intrinsics_inv = torch.eye(3, device=device).unsqueeze(0).repeat(batch_size, 1, 1)
+    intrinsics_inv[:, 0, 0] = 1.0 / camera_intrinsics[:, 0, 0]
+    intrinsics_inv[:, 1, 1] = 1.0 / camera_intrinsics[:, 1, 1]
+    intrinsics_inv[:, 0, 2] = -camera_intrinsics[:, 0, 2] / camera_intrinsics[:, 0, 0]
+    intrinsics_inv[:, 1, 2] = -camera_intrinsics[:, 1, 2] / camera_intrinsics[:, 1, 1]
     homogeneous_coords = torch.cat(
         [pixel_coords, torch.ones_like(pixel_coords[:, :, :1])], dim=2
     )  # (H, W, 3)
@@ -164,10 +169,9 @@ def project_points(
     # Normalize projected points: (u v w) -> (u / w, v / w, 1)
     points_2d = points_2d[..., :2] / points_2d[..., 2:]
 
-    # To pixels (rounding!!!), no int as it breaks gradient
-    points_2d = points_2d.round()
+    points_2d = points_2d.int()
 
-    # pointa need to be inside the image (can it diverge onto all points out???)
+    # points need to be inside the image (can it diverge onto all points out???)
     valid_mask = (
         (points_2d[..., 0] >= 0)
         & (points_2d[..., 0] < image_shape[1])

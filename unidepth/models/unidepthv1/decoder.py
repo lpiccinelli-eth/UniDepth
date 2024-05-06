@@ -484,7 +484,7 @@ class Decoder(nn.Module):
         depths_encoder = config["model"]["pixel_encoder"]["depths"]
         num_steps = config["model"].get("num_steps", 100000)
         layer_scale = 1.0
-        
+
         self.depth = depth
         self.dim = hidden_dim
         self.downsample = 4

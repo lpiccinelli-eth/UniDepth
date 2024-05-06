@@ -274,7 +274,7 @@ class NestedTensorBlock(Block):
 
     def forward(self, x_or_x_list):
         if isinstance(x_or_x_list, torch.Tensor):
-            return super().forward(x_or_x_list)
+            return super(NestedTensorBlock, self).forward(x_or_x_list)
         elif isinstance(x_or_x_list, list):
             assert (
                 XFORMERS_AVAILABLE

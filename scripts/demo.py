@@ -3,7 +3,7 @@ import numpy as np
 from PIL import Image
 
 from unidepth.utils import colorize, image_grid
-from unidepth.models import UniDepthV1
+from unidepth.models import UniDepthV1, UniDepthV2
 
 
 def demo(model):
@@ -38,6 +38,7 @@ def demo(model):
 if __name__ == "__main__":
     print("Torch version:", torch.__version__)
     model = UniDepthV1.from_pretrained("lpiccinelli/unidepth-v1-vitl14")
+    # model = UniDepthV2.from_pretrained("lpiccinelli/unidepth-v2-vitl14")
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = model.to(device)
     demo(model)

@@ -1,9 +1,5 @@
-"""
-Author: Luigi Piccinelli
-Licensed under the CC-BY NC 4.0 license (http://creativecommons.org/licenses/by-nc/4.0/)
-"""
-
-from functools import wraps
+from functools import partial, wraps
+from collections import defaultdict
 
 import numpy as np
 from scipy import interpolate
@@ -16,10 +12,22 @@ from einops import rearrange, repeat, reduce
 
 
 def max_stack(tensors):
-    return torch.stack(tensors, dim=-1).max(dim=-1)[0]
+    if len(tensors) == 1:
+        return tensors[0]
+    return torch.stack(tensors, dim=-1).max(dim=-1).values
+
+
+def last_stack(tensors):
+    return tensors[-1]
+
+
+def first_stack(tensors):
+    return tensors[0]
 
 
 def softmax_stack(tensors, temperature=1.0):
+    if len(tensors) == 1:
+        return tensors[0]
     return F.softmax(torch.stack(tensors, dim=-1) / temperature, dim=-1).sum(dim=-1)
 
 
@@ -30,6 +38,8 @@ def mean_stack(tensors):
 
 
 def sum_stack(tensors):
+    if len(tensors) == 1:
+        return tensors[0]
     return torch.stack(tensors, dim=-1).sum(dim=-1)
 
 
@@ -357,8 +367,6 @@ def remove_padding(out, paddings):
 
 
 def remove_padding_metas(out, image_metas):
-    B, C, H, W = out.shape
-    device = out.device
     # left, right, top, bottom
     paddings = [
         torch.tensor(img_meta.get("padding_size", [0] * 4)) for img_meta in image_metas
@@ -399,5 +407,14 @@ def remove_leading_dim(infos):
         return {k: remove_leading_dim(v) for k, v in infos.items()}
     elif isinstance(infos, torch.Tensor):
         return infos.squeeze(0)
+    else:
+        return infos
+
+
+def to_cpu(infos):
+    if isinstance(infos, dict):
+        return {k: to_cpu(v) for k, v in infos.items()}
+    elif isinstance(infos, torch.Tensor):
+        return infos.detach()
     else:
         return infos

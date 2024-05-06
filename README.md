@@ -20,10 +20,11 @@
 
 - [ ] Release UniDepth on PyPI.
 - [ ] Release HuggingFace/Gradio demo.
-- [ ] Release UniDepthV2 and smaller models (Base and Small).
+- [ ] Release smaller V2 models (Small and Base).
+- [x] `01.05.2024`: Release UniDepthV2.
 - [x] `02.04.2024`: Release UniDepth as python package.
 - [x] `01.04.2024`: Inference code and V1 models are released.
-- [x] `26.02.2024`: UniDepth is accepted at CVPR 2024!
+- [x] `26.02.2024`: UniDepth is accepted at CVPR 2024! (Highlight :star:)
 
 
 ## Zero-Shot Visualization
@@ -140,18 +141,37 @@ data = {"image": rgb, "K": intrinsics}
 predictions = model(data, {})
 ```
 
-Please visit [Hugging Face](https://huggingface.co/lpiccinelli) to access the repo models with weights. You can load V1 of UniDepth as:
+Please visit [Hugging Face](https://huggingface.co/lpiccinelli) to access the repo models with weights. You can load UniDepth as:
 
 ```python
-from unidepth.models import UniDepthV1
+from unidepth.models import UniDepthV1, UniDepthV2
 
-model = UniDepthV1.from_pretrained(f"lpiccinelli/unidepth-v1-{backbone}")
+model_v1 = UniDepthV1.from_pretrained(f"lpiccinelli/unidepth-v1-{backbone}")
+model_v2 = UniDepthV2.from_pretrained(f"lpiccinelli/unidepth-v2-{backbone}")
 ```
 
-where backbones available are: "vitl14" or "cnvnxtl".
+In addition, we provide loading from TorchHub as:
 
-You can look into function `UniDepth` in [hubconf.py](hubconf.py) to see how to instantiate the model from local file (just provide a local `path` in line 34) and how to use TorchHub loading.
+```python
+version = "v2"
+backbone = "vitl14"
 
+model = torch.hub.load("lpiccinelli-eth/UniDepth", "UniDepth", version=version, backbone=backbone, pretrained=True, trust_repo=True, force_reload=True)
+```
+
+where backbones available are "vitl14" and "cnvnxtl", and versions available are "v1" and "v2".
+You can look into function `UniDepth` in [hubconf.py](hubconf.py) to see how to instantiate the model from local file: provide a local `path` in line 34.
+
+
+## UniDepthV2
+
+Visit [UniDepthV2 ReadMe](assets/docs/V2_README.md) for a more detailed changelog.
+To summarize the main differences are:  
+- Input shape and ratio flexibility.  
+- Confidence output  
+- Decoder design  
+- Faster inference  
+- ONNX support
 
 
 ## Results
