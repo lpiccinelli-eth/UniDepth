@@ -141,7 +141,7 @@ class DinoVisionTransformer(nn.Module):
         checkpoint: bool = False,
         num_register_tokens=0,
         interpolate_antialias=False,
-        interpolate_offset=0.1,
+        interpolate_offset=0.0,
         use_norm=False,
     ):
         """
@@ -278,23 +278,28 @@ class DinoVisionTransformer(nn.Module):
         dim = x.shape[-1]
         w0 = w // self.patch_size
         h0 = h // self.patch_size
-        # we add a small number to avoid floating point error in the interpolation
-        # see discussion at https://github.com/facebookresearch/dino/issues/8
-        w0, h0 = w0 + self.interpolate_offset, h0 + self.interpolate_offset
+
+        M = int(math.sqrt(N))  # Recover the number of patches in each dimension
+        assert N == M * M
+        kwargs = {}
+        if self.interpolate_offset:
+            # Historical kludge: add a small number to avoid floating point error in the interpolation, see https://github.com/facebookresearch/dino/issues/8
+            # Note: still needed for backward-compatibility, the underlying operators are using both output size and scale factors
+            sx = float(w0 + self.interpolate_offset) / M
+            sy = float(h0 + self.interpolate_offset) / M
+            kwargs["scale_factor"] = (sx, sy)
+        else:
+            # Simply specify an output size instead of a scale factor
+            kwargs["size"] = (w0, h0)
 
         patch_pos_embed = nn.functional.interpolate(
-            patch_pos_embed.reshape(
-                1, int(math.sqrt(N)), int(math.sqrt(N)), dim
-            ).permute(0, 3, 1, 2),
-            scale_factor=(int(w0) / math.sqrt(N), int(h0) / math.sqrt(N)),
+            patch_pos_embed.reshape(1, M, M, dim).permute(0, 3, 1, 2),
             mode="bicubic",
             antialias=self.interpolate_antialias,
+            **kwargs,
         )
+        assert (w0, h0) == patch_pos_embed.shape[-2:]
 
-        assert (
-            int(w0) == patch_pos_embed.shape[-2]
-            and int(h0) == patch_pos_embed.shape[-1]
-        )
         patch_pos_embed = patch_pos_embed.permute(0, 2, 3, 1).view(1, -1, dim)
         return torch.cat((class_pos_embed.unsqueeze(0), patch_pos_embed), dim=1).to(
             previous_dtype
@@ -419,6 +424,7 @@ def _make_dinov2_model(
     drop_path_rate: float = 0.0,
     use_norm: bool = False,
     export: bool = False,
+    interpolate_offset: float = 0.0,
     **kwargs,
 ):
     model_name = _make_dinov2_model_name(arch_name, patch_size)
@@ -434,6 +440,7 @@ def _make_dinov2_model(
         num_register_tokens=num_register_tokens,
         use_norm=use_norm,
         export=export,
+        interpolate_offset=interpolate_offset,
     )
     vit_kwargs.update(**kwargs)
     model = eval(arch_name)(**vit_kwargs)

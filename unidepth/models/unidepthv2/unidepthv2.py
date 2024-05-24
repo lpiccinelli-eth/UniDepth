@@ -42,8 +42,8 @@ def _check_ratio(image_ratio, ratio_bounds):
         image_ratio < ratio_bounds[0] or image_ratio > ratio_bounds[1]
     ):
         warnings.warn(
-            f"Input image ratio ({image_ratio:.3f} is out of distribution: "
-            f"{ratio_bounds}. This may lead to unexpected results."
+            f"Input image ratio ({image_ratio:.3f}) is out of training "
+            f"distribution: {ratio_bounds}. This may lead to unexpected results."
         )
 
 
@@ -272,7 +272,7 @@ class UniDepthV2(
         ).permute(0, 3, 1, 2)
 
         outputs = {
-            "K": pred_intrinsics,
+            "intrinsics": pred_intrinsics,
             "points": points_3d,
             "depth": depth,
             "depth_ssi": depth_ssi,

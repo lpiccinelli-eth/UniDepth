@@ -307,6 +307,7 @@ class UniDepthV1(
             **config["training"],
             **config["data"],
             **config["model"]["pixel_encoder"],
+            "interpolate_offset": 0.1
         }
         pixel_encoder = pixel_encoder_factory(pixel_encoder_config)
 

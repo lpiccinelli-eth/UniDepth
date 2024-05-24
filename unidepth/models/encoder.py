@@ -148,6 +148,7 @@ def dinov2_vits14(config, pretrained: bool = True, **kwargs):
         num_register_tokens=config.get("num_register_tokens", 0),
         use_norm=config.get("use_norm", False),
         export=config.get("export", False),
+        interpolate_offset=config.get("interpolate_offset", 0.0),
         **kwargs,
     )
     return vit
@@ -166,6 +167,7 @@ def dinov2_vitb14(config, pretrained: bool = True, **kwargs):
         num_register_tokens=config.get("num_register_tokens", 0),
         use_norm=config.get("use_norm", False),
         export=config.get("export", False),
+        interpolate_offset=config.get("interpolate_offset", 0.0),
         **kwargs,
     )
     return vit
@@ -184,6 +186,7 @@ def dinov2_vitl14(config, pretrained: str = "", **kwargs):
         num_register_tokens=config.get("num_register_tokens", 0),
         use_norm=config.get("use_norm", False),
         export=config.get("export", False),
+        interpolate_offset=config.get("interpolate_offset", 0.0),
         **kwargs,
     )
     return vit
