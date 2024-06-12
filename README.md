@@ -143,13 +143,49 @@ data = {"image": rgb, "K": intrinsics}
 predictions = model(data, {})
 ```
 
-Please visit [Hugging Face](https://huggingface.co/lpiccinelli) to access the repo models with weights. You can load UniDepth as:
+## Model Zoo
+
+The available models are the following:
+
+<table border="0">
+    <tr>
+        <th>Model</th>
+        <th>Backbone</th>
+        <th>Name</th>
+    </tr>
+    <tr>
+        <td rowspan="2"><b>UnidepthV1</b></td>
+        <td>ConvNext-L</td>
+        <td><a href="https://huggingface.co/lpiccinelli/unidepth-v1-cnvnxtl">unidepth-v1-cnvnxtl</a></td>
+    </tr>
+    <tr>
+        <td>ViT-L</td>
+        <td><a href="https://huggingface.co/lpiccinelli/unidepth-v1-vitl14">unidepth-v1-vitl14</a></td>
+    </tr>
+    <hr style="border: 2px solid black;">
+    <tr>
+        <td rowspan="3"><b>UnidepthV2</b></td>
+        <td>ViT-S</td>
+        <td><a href="https://huggingface.co/lpiccinelli/unidepth-v2-vits14">unidepth-v2-vits14</a></td>
+    </tr>
+    <tr>
+        <td>ViT-B</td>
+        <td>unidepth-v1-vitb14 (Coming Soon)</td>
+    </tr>
+    <tr>
+        <td>ViT-L</td>
+        <td><a href="https://huggingface.co/lpiccinelli/unidepth-v2-vitl14">unidepth-v2-vitl14</a></td>
+    </tr>
+</table>
+
+Please visit [Hugging Face](https://huggingface.co/lpiccinelli) or click on the links above to access the repo models with weights.
+You can load UniDepth as the following, with name the same as in the above table:
 
 ```python
 from unidepth.models import UniDepthV1, UniDepthV2
 
-model_v1 = UniDepthV1.from_pretrained(f"lpiccinelli/unidepth-v1-{backbone}")
-model_v2 = UniDepthV2.from_pretrained(f"lpiccinelli/unidepth-v2-{backbone}")
+model_v1 = UniDepthV1.from_pretrained(f"lpiccinelli/{name}")
+model_v2 = UniDepthV2.from_pretrained(f"lpiccinelli/{name}")
 ```
 
 In addition, we provide loading from TorchHub as:
@@ -161,7 +197,6 @@ backbone = "vitl14"
 model = torch.hub.load("lpiccinelli-eth/UniDepth", "UniDepth", version=version, backbone=backbone, pretrained=True, trust_repo=True, force_reload=True)
 ```
 
-where backbones available are "vitl14" and "cnvnxtl", and versions available are "v1" and "v2".
 You can look into function `UniDepth` in [hubconf.py](hubconf.py) to see how to instantiate the model from local file: provide a local `path` in line 34.
 
 
