@@ -10,15 +10,14 @@
 
 import logging
 
-from torch import Tensor
 import torch.nn as nn
-
+from torch import Tensor
 
 logger = logging.getLogger("dinov2")
 
 
 try:
-    from xformers.ops import memory_efficient_attention, unbind, fmha
+    from xformers.ops import fmha, memory_efficient_attention, unbind
 
     XFORMERS_AVAILABLE = True
 except ImportError:

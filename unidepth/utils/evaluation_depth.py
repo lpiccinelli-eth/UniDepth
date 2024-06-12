@@ -12,9 +12,10 @@ from functools import partial
 import torch
 import torch.nn.functional as F
 
+from unidepth.utils.constants import DEPTH_BINS
+
 # from chamfer_distance import ChamferDistance
 
-from unidepth.utils.constants import DEPTH_BINS
 
 
 # chamfer_cls = ChamferDistance()

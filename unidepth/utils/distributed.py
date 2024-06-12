@@ -5,15 +5,14 @@ Licensed under the CC-BY NC 4.0 license (http://creativecommons.org/licenses/by-
 
 import os
 import platform
-import warnings
 import subprocess
+import warnings
 
 import cv2
-
 import torch
 import torch.utils.data.distributed
-from torch import multiprocessing as mp
 from torch import distributed as dist
+from torch import multiprocessing as mp
 
 
 def is_dist_avail_and_initialized():

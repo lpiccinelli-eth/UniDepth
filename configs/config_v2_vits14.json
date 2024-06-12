@@ -22,11 +22,11 @@
             "dropout": 0.0
         },
         "pixel_encoder": {
-            "name": "dinov2_vitl14",
+            "name": "dinov2_vits14",
             "pretrained": null,
             "use_norm": true,
             "stacking_fn": "last",
-            "output_idx": [21,22,23,24]
+            "output_idx": [9,10,11,12]
         }
     }
 }

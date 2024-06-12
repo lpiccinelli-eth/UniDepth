@@ -1,4 +1,4 @@
-from .losses import SILog, MSE, SelfCons
+from .losses import MSE, SelfCons, SILog
 from .scheduler import CosineScheduler
 
 __all__ = [

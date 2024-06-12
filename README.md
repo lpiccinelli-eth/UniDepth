@@ -1,5 +1,7 @@
-[![arXiv](https://img.shields.io/badge/arXiv-UniDepth-red)](https://arxiv.org/abs/2403.18913)
-[![HuggingFace](https://img.shields.io/badge/%F0%9F%A4%97%20HuggingFace-Cooming%20Soon-yellow)](https://huggingface.co/spaces/lpiccinelli/UniDepth)
+[![arXiv](https://img.shields.io/badge/arXiv-2403.18913-blue?style=for-the-badge&logo=arxiv&color=%23B31B1B)](https://arxiv.org/abs/2403.18913)
+
+[![ProjectPage](https://img.shields.io/badge/Project_Page-UniDepth-blue?style=for-the-badge)](https://lpiccinelli-eth.github.io/pub/unidepth/)
+<!-- [![HuggingFace](https://img.shields.io/badge/%F0%9F%A4%97%20HuggingFace-Cooming%20Soon-yellow)](https://huggingface.co/spaces/lpiccinelli/UniDepth) -->
 
 [![KITTI Benchmark](https://img.shields.io/badge/KITTI%20Benchmark-1st%20(at%20submission%20time)-blue)](https://www.cvlibs.net/datasets/kitti/eval_depth.php?benchmark=depth_prediction)
 [![PWC](https://img.shields.io/endpoint.svg?url=https://paperswithcode.com/badge/unidepth-universal-monocular-metric-depth/monocular-depth-estimation-on-nyu-depth-v2)](https://paperswithcode.com/sota/monocular-depth-estimation-on-nyu-depth-v2?p=unidepth-universal-monocular-metric-depth)
@@ -20,7 +22,7 @@
 
 - [ ] Release UniDepth on PyPI.
 - [ ] Release HuggingFace/Gradio demo.
-- [ ] Release smaller V2 models (Small and Base).
+- [x] `12.06.2024`: Release smaller V2 models (Base is coming soon).
 - [x] `01.05.2024`: Release UniDepthV2.
 - [x] `02.04.2024`: Release UniDepth as python package.
 - [x] `01.04.2024`: Inference code and V1 models are released.
@@ -202,10 +204,10 @@ If you find any bug in the code, please report to Luigi Piccinelli (lpiccinelli@
 If you find our work useful in your research please consider citing our publication:
 ```bibtex
 @inproceedings{piccinelli2024unidepth,
-    title={UniDepth: Universal Monocular Metric Depth Estimation},
-    author = {Piccinelli, Luigi and Yang, Yung-Hsu and Sakaridis, Christos and Segu, Mattia and Li, Siyuan and Van Gool, Luc and Yu, Fisher},
-    booktitle = {IEEE Conference on Computer Vision and Pattern Recognition (CVPR)},
-    year={2024}
+    title     = {{U}ni{D}epth: Universal Monocular Metric Depth Estimation},
+    author    = {Piccinelli, Luigi and Yang, Yung-Hsu and Sakaridis, Christos and Segu, Mattia and Li, Siyuan and Van Gool, Luc and Yu, Fisher},
+    booktitle = {Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR)},
+    year      = {2024}
 }
 ```
 

@@ -1,21 +1,15 @@
-from functools import partial
-import math
 import logging
-from typing import Sequence, Callable
+import math
+from functools import partial
+from typing import Callable, Sequence
 
 import torch
 import torch.nn as nn
 from torch.nn.init import trunc_normal_
 
-from .metadinov2 import (
-    Mlp,
-    PatchEmbed,
-    SwiGLUFFNFused,
-    MemEffAttention,
-    Attention,
-    NestedTensorBlock as Block,
-)
-
+from .metadinov2 import Attention, MemEffAttention, Mlp
+from .metadinov2 import NestedTensorBlock as Block
+from .metadinov2 import PatchEmbed, SwiGLUFFNFused
 
 _DINOV2_BASE_URL = "https://dl.fbaipublicfiles.com/dinov2"
 logger = logging.getLogger("dinov2")

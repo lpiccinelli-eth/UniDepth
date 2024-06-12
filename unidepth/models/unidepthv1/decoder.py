@@ -5,25 +5,17 @@ Licensed under the CC-BY NC 4.0 license (http://creativecommons.org/licenses/by-
 
 from typing import List, Tuple
 
-from einops import rearrange
-from timm.models.layers import trunc_normal_
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from einops import rearrange
+from timm.models.layers import trunc_normal_
 
-from unidepth.layers import (
-    MLP,
-    AttentionBlock,
-    NystromBlock,
-    PositionEmbeddingSine,
-    ConvUpsample,
-)
-from unidepth.utils.sht import rsh_cart_8
-from unidepth.utils.geometric import (
-    generate_rays,
-    flat_interpolate,
-)
+from unidepth.layers import (MLP, AttentionBlock, ConvUpsample, NystromBlock,
+                             PositionEmbeddingSine)
+from unidepth.utils.geometric import flat_interpolate, generate_rays
 from unidepth.utils.misc import max_stack
+from unidepth.utils.sht import rsh_cart_8
 
 
 class ListAdapter(nn.Module):

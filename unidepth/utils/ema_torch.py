@@ -3,14 +3,13 @@ Author: Luigi Piccinelli
 Licensed under the CC-BY NC 4.0 license (http://creativecommons.org/licenses/by-nc/4.0/)
 """
 
-from __future__ import division
-from __future__ import unicode_literals
+from __future__ import division, unicode_literals
 
-from typing import Iterable, Optional
-import weakref
-import copy
 import contextlib
+import copy
+import weakref
 from math import tanh
+from typing import Iterable, Optional
 
 import torch
 

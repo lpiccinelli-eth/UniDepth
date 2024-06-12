@@ -1,9 +1,9 @@
-import torch
 import numpy as np
+import torch
 from PIL import Image
 
-from unidepth.utils import colorize, image_grid
 from unidepth.models import UniDepthV1, UniDepthV2
+from unidepth.utils import colorize, image_grid
 
 
 def demo(model):

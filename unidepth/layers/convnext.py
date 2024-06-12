@@ -10,20 +10,20 @@ class CvnxtBlock(nn.Module):
         layer_scale=1.0,
         expansion=4,
         dilation=1,
+        padding_mode: str = "zeros",
     ):
         super().__init__()
         self.dwconv = nn.Conv2d(
             dim,
             dim,
             kernel_size=kernel_size,
-            padding="same",
+            padding=dilation * (kernel_size - 1) // 2,
             groups=dim,
             dilation=dilation,
+            padding_mode=padding_mode,
         )  # depthwise conv
-        self.norm = nn.LayerNorm(dim, eps=1e-6)
-        self.pwconv1 = nn.Linear(
-            dim, expansion * dim
-        )  # pointwise/1x1 convs, implemented with linear layers
+        self.norm = nn.LayerNorm(dim)
+        self.pwconv1 = nn.Linear(dim, expansion * dim)
         self.act = nn.GELU()
         self.pwconv2 = nn.Linear(expansion * dim, dim)
         self.gamma = (

@@ -1,7 +1,7 @@
-import warnings
-from math import ceil
-from copy import deepcopy
 import importlib
+import warnings
+from copy import deepcopy
+from math import ceil
 
 import torch
 import torch.nn as nn
@@ -10,21 +10,14 @@ import torchvision.transforms.functional as TF
 from einops import rearrange
 from huggingface_hub import PyTorchModelHubMixin
 
-from unidepth.utils.geometric import (
-    generate_rays,
-    spherical_zbuffer_to_euclidean,
-)
-from unidepth.utils.misc import (
-    max_stack,
-    mean_stack,
-    first_stack,
-    last_stack,
-    softmax_stack,
-)
-from unidepth.utils.distributed import is_main_process
-from unidepth.utils.constants import IMAGENET_DATASET_MEAN, IMAGENET_DATASET_STD
 from unidepth.models.unidepthv2.decoder import Decoder
-
+from unidepth.utils.constants import (IMAGENET_DATASET_MEAN,
+                                      IMAGENET_DATASET_STD)
+from unidepth.utils.distributed import is_main_process
+from unidepth.utils.geometric import (generate_rays,
+                                      spherical_zbuffer_to_euclidean)
+from unidepth.utils.misc import (first_stack, last_stack, max_stack,
+                                 mean_stack, softmax_stack)
 
 STACKING_FNS = {
     "max": max_stack,
@@ -33,6 +26,7 @@ STACKING_FNS = {
     "last": last_stack,
     "softmax": softmax_stack,
 }
+RESOLUTION_LEVELS = 10
 
 
 # inference helpers
@@ -43,8 +37,33 @@ def _check_ratio(image_ratio, ratio_bounds):
     ):
         warnings.warn(
             f"Input image ratio ({image_ratio:.3f}) is out of training "
-            f"distribution: {ratio_bounds}. This may lead to unexpected results."
+            f"distribution: {ratio_bounds}. This may lead to unexpected results. "
+            f"Consider resizing/padding the image to match the training distribution."
         )
+
+
+def _check_resolution(shape_constraints, resolution_level):
+    if resolution_level is None:
+        warnings.warn(
+            "Resolution level is not set. Using max resolution. "
+            "You can tradeoff resolution for speed by setting a number in [0,10]. "
+            "This can be achieved by setting model `resolution_level` attribute."
+        )
+        resolution_level = RESOLUTION_LEVELS
+    pixel_bounds = sorted(shape_constraints["pixels_bounds_ori"])
+    pixel_range = pixel_bounds[-1] - pixel_bounds[0]
+    clipped_resolution_level = min(max(resolution_level, 0), RESOLUTION_LEVELS)
+    if clipped_resolution_level != resolution_level:
+        warnings.warn(
+            f"Resolution level {resolution_level} is out of bounds ([0,{RESOLUTION_LEVELS}]). "
+            f"Clipping to {clipped_resolution_level}."
+        )
+    shape_constraints["pixels_bounds"] = [
+        pixel_bounds[0]
+        + ceil(pixel_range * clipped_resolution_level / RESOLUTION_LEVELS),
+        pixel_bounds[-1],
+    ]
+    return shape_constraints
 
 
 def _get_closes_num_pixels(image_shape, pixels_bounds):
@@ -52,12 +71,6 @@ def _get_closes_num_pixels(image_shape, pixels_bounds):
     num_pixels = h * w
     pixels_bounds = sorted(pixels_bounds)
     num_pixels = max(min(num_pixels, pixels_bounds[1]), pixels_bounds[0])
-    if num_pixels < pixels_bounds[1]:
-        warnings.warn(
-            f"Number of pixels ({num_pixels}) is lower than maximum: "
-            f"{pixels_bounds[1]}. You can force it by setting "
-            f"`shape_constraints` in UniDepthV2 `build` method."
-        )
     return num_pixels
 
 
@@ -92,9 +105,6 @@ def _preprocess(rgbs, intrinsics, shapes, ratio):
 
 def _postprocess(outs, ratio, original_shapes, mode="nearest-exact"):
     outs["depth"] = F.interpolate(outs["depth"], size=original_shapes, mode=mode)
-    outs["depth_ssi"] = F.interpolate(
-        outs["depth_ssi"], size=original_shapes, mode=mode
-    )
     outs["confidence"] = F.interpolate(
         outs["confidence"], size=original_shapes, mode="bilinear", antialias=True
     )
@@ -120,8 +130,9 @@ class UniDepthV2(
     ):
         super().__init__()
         self.build(config)
-        self.interpolation_mode = "nearest-exact"
+        self.interpolation_mode = "bilinear"
         self.eps = eps
+        self.resolution_level = None
 
     def forward(self, inputs, image_metas):
         H, W = inputs["depth"].shape[-2:]
@@ -165,13 +176,6 @@ class UniDepthV2(
             align_corners=False,
             antialias=True,
         )
-        predictions_normalized = F.interpolate(
-            outs["depth_ssi"],
-            size=(H, W),
-            mode="bilinear",
-            align_corners=False,
-            antialias=True,
-        )
         confidence = F.interpolate(
             outs["confidence"],
             size=(H, W),
@@ -187,15 +191,15 @@ class UniDepthV2(
         outputs = {
             "K": outs["K"],
             "depth": predictions,
-            "depth_ssi": predictions_normalized,
             "confidence": confidence,
-            "scale_shift": outs["scale_shift"],
             "points": predictions_3d,
+            "depth_features": outs["depth_features"],
         }
         return outputs
 
     @torch.no_grad()
     def infer(self, rgbs: torch.Tensor, intrinsics=None):
+        shape_constraints = self.shape_constraints
         if rgbs.ndim == 3:
             rgbs = rgbs.unsqueeze(0)
         if intrinsics is not None and intrinsics.ndim == 2:
@@ -216,8 +220,11 @@ class UniDepthV2(
                 std=IMAGENET_DATASET_STD,
             )
 
+        # check resolution constraints: tradeoff resolution and speed
+        shape_constraints = _check_resolution(shape_constraints, self.resolution_level)
+
         # get image shape
-        (h, w), ratio = _shapes((H, W), self.shape_constraints)
+        (h, w), ratio = _shapes((H, W), shape_constraints)
         rgbs, gt_intrinsics = _preprocess(
             rgbs,
             intrinsics,
@@ -258,8 +265,6 @@ class UniDepthV2(
         outs = _postprocess(outs, ratio, (H, W), mode=self.interpolation_mode)
         pred_intrinsics = outs["K"]
         depth = outs["depth"]
-        depth_ssi = outs["depth_ssi"]
-        scale_shift = outs["scale_shift"]
         confidence = outs["confidence"]
 
         # final 3D points backprojection
@@ -275,8 +280,6 @@ class UniDepthV2(
             "intrinsics": pred_intrinsics,
             "points": points_3d,
             "depth": depth,
-            "depth_ssi": depth_ssi,
-            "scale_shift": scale_shift,
             "confidence": confidence,
         }
         return outputs
@@ -341,10 +344,6 @@ class UniDepthV2(
             zip([0, *pixel_encoder.depths[:-1]], pixel_encoder.depths)
         )
         self.shape_constraints = config["data"]["shape_constraints"]
-
-        # Force your own num pixels based on cost and performance!
-        # NB: `num_pixels` is after dividing by `patch_size`
-        # self.shape_constraints["pixels_bounds"] = ...
-        # Example:
-        # max_num_pixels = self.shape_constraints["pixels_bounds"][1]
-        # self.shape_constraints["pixels_bounds"] = [max_num_pixels, max_num_pixels]
+        self.shape_constraints["pixels_bounds_ori"] = self.shape_constraints.get(
+            "pixels_bounds", [1400, 2400]
+        )

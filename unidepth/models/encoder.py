@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 
-from unidepth.models.backbones import ConvNeXtV2, _make_dinov2_model, ConvNeXt
+from unidepth.models.backbones import ConvNeXt, ConvNeXtV2, _make_dinov2_model
 
 
 class ModelWrap(nn.Module):
@@ -110,9 +110,10 @@ def convnext_large_pt(config, **kwargs):
         use_checkpoint=config.get("use_checkpoint", False),
         **kwargs,
     )
-    from unidepth.models.backbones.convnext import HF_URL, checkpoint_filter_fn
     from huggingface_hub import hf_hub_download
     from huggingface_hub.utils import disable_progress_bars
+
+    from unidepth.models.backbones.convnext import HF_URL, checkpoint_filter_fn
 
     disable_progress_bars()
     repo_id, filename = HF_URL["convnext_large_pt"]
@@ -141,7 +142,7 @@ def dinov2_vits14(config, pretrained: bool = True, **kwargs):
     """
     vit = _make_dinov2_model(
         arch_name="vit_small",
-        pretrained=pretrained,
+        pretrained=config["pretrained"],
         output_idx=config.get("output_idx", [3, 6, 9, 12]),
         checkpoint=config.get("use_checkpoint", False),
         drop_path_rate=config.get("drop_path", 0.0),
@@ -160,7 +161,7 @@ def dinov2_vitb14(config, pretrained: bool = True, **kwargs):
     """
     vit = _make_dinov2_model(
         arch_name="vit_base",
-        pretrained=pretrained,
+        pretrained=config["pretrained"],
         output_idx=config.get("output_idx", [3, 6, 9, 12]),
         checkpoint=config.get("use_checkpoint", False),
         drop_path_rate=config.get("drop_path", 0.0),

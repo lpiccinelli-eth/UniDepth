@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 
 from unidepth.utils.misc import default
+
 from .activation import SwiGLU
 
 

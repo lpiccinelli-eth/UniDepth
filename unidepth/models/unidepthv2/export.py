@@ -3,18 +3,17 @@ Author: Luigi Piccinelli
 Licensed under the CC-BY NC 4.0 license (http://creativecommons.org/licenses/by-nc/4.0/)
 """
 
-import os
-import json
 import argparse
+import json
+import os
 from math import ceil
 
+import huggingface_hub
 import torch.nn.functional as F
 import torch.onnx
-import huggingface_hub
 
-
-from unidepth.utils.geometric import generate_rays
 from unidepth.models.unidepthv2 import UniDepthV2
+from unidepth.utils.geometric import generate_rays
 
 
 class UniDepthV2ONNX(UniDepthV2):
