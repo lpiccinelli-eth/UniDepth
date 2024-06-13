@@ -1,9 +1,9 @@
-import torch
 import numpy as np
+import torch
 from PIL import Image
 
-from unidepth.utils import colorize, image_grid
 from unidepth.models import UniDepthV1, UniDepthV2
+from unidepth.utils import colorize, image_grid
 
 
 def demo(model):
@@ -37,8 +37,17 @@ def demo(model):
 
 if __name__ == "__main__":
     print("Torch version:", torch.__version__)
+    name = "unidepth-v2-vitl14"
     # model = UniDepthV1.from_pretrained("lpiccinelli/unidepth-v1-vitl14")
-    model = UniDepthV2.from_pretrained("lpiccinelli/unidepth-v2-vitl14")
+    model = UniDepthV2.from_pretrained(f"lpiccinelli/{name}")
+
+    # set resolution level (only V2)
+    # model.resolution_level = 0
+
+    # set interpolation mode (only V2)
+    # model.interpolation_mode = "bilinear"
+
+
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = model.to(device)
     demo(model)

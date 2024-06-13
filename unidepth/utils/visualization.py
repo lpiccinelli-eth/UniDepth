@@ -5,11 +5,11 @@ Licensed under the CC-BY NC 4.0 license (http://creativecommons.org/licenses/by-
 
 import os
 
+import matplotlib.pyplot as plt
 import numpy as np
-from PIL import Image
-import matplotlib.cm
-import wandb
 import torch
+import wandb
+from PIL import Image
 
 from unidepth.utils.misc import ssi_helper
 
@@ -29,7 +29,7 @@ def colorize(
     value = (value - vmin) / (vmax - vmin)  # vmin..vmax
 
     # set color
-    cmapper = matplotlib.cm.get_cmap(cmap)
+    cmapper = plt.get_cmap(cmap)
     value = cmapper(value, bytes=True)  # (nxmx4)
     value[invalid_mask] = 0
     img = value[..., :3]

@@ -3,17 +3,11 @@
 
 ### Input shape and ratio flexibility.
 
-Input images do not have to be resized to a specific ratio. Training ratios are in tha range: `[2/3, 2/1]`. The image shape and size is flexible and can be adapted to the needs and performances desired. "Pixels" are meant after the patchification, for instance for ViT they are `(1/14)**2` of the original input number of pixels. Training number of pixels for ViT are in the range `[1800, 2400]` as in the config. The model will ue the training values and try to find the closest input size as `max(min(num_pixels, pixels_bounds[1]), pixels_bounds[0])` (line 51 in `unidepthv2.py`). You can modify it by changing the attribute `self.shape_constraints["pixels_bound"]` in `UniDepthV2` object. For instance, to use the largest training input size you can set `self.shape_constraints["pixels_bound"] = [2400, 2400]`. If you set less than the maximum a warning is triggered. For instance, you can use the maximum as:
+1. Input images will not be reshaped to a specific image size. Training image ratios are in tha range: `[2/3, 2/1]`, thus if your image ratio is outside of these boundaries, we suggest to crop or pad it to be within the image ratio bounds.
 
-```python
-from unidepth.models import UniDepthV2
+2. UnidepthV2 exposes the attribute `self.resolution_level` (with range `[0,10]`) that is used in the preprocess function and can be used to tradeoff resolution and speed, with **possible effect** on the output scale. In particular, the level describes the linear interpolation degree of the processed image area within the training bounds. The training image area (named "pixels") for ViT are in the range `[1400, 2400]` (see `pixels_bounds` in config). If no attribute is set, the max level, i.e. 10, will be used. We improperly use the concept of "pixels" which accounts for the image area after patchification, e.g. for ViT means that it is `1/14**2` the actual original image area.
 
-model = UniDepthV2.from_pretrained("lpiccinelli/unidepth-v2-vitl14")
-max_pixels = model.shape_constraints["pixels_bound"][1]
-model.shape_constraints["pixels_bound"] = [max_pixels, max_pixels]
-```
-
-Infer method will use interpolation mode expressed by the attribute `self.interpolation_mode`, default is `nearest-exact`.
+3. Infer method will use interpolation mode defined by the attribute `self.interpolation_mode`, default is `bilinear`.
 
 
 ### Confidence output  

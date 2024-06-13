@@ -1,10 +1,15 @@
+"""
+Author: Luigi Piccinelli
+Licensed under the CC-BY NC 4.0 license (http://creativecommons.org/licenses/by-nc/4.0/)
+"""
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from einops import rearrange
 from timm.models.layers import trunc_normal_
 
-from unidepth.layers import (MLP, AttentionBlock, ConvUpsampleShuffleResidual,
+from unidepth.layers import (MLP, AttentionBlock, ConvUpsampleShuffle,
                              NystromBlock, PositionEmbeddingSine)
 from unidepth.utils.geometric import flat_interpolate, generate_rays
 from unidepth.utils.positional_embedding import generate_fourier_features
@@ -33,7 +38,6 @@ class CameraHead(nn.Module):
     def __init__(
         self,
         hidden_dim: int,
-        num_heads: int = 8,
         expansion: int = 4,
         dropout: float = 0.0,
         **kwargs,
@@ -185,7 +189,9 @@ class DepthHead(nn.Module):
         self.ups = nn.ModuleList([])
         self.process_layers = nn.ModuleList([])
         self.norms, self.out_layers = nn.ModuleList([]), nn.ModuleList([])
-        self.depth_mlp, self.confidence_mlp = nn.ModuleList([]), nn.ModuleList([])
+        self.confidence_norms, self.confidence_out_layers = nn.ModuleList(
+            []
+        ), nn.ModuleList([])
         for i, depth in enumerate(depths):
             blk_lst = nn.ModuleList([])
             for _ in range(depth):
@@ -200,33 +206,21 @@ class DepthHead(nn.Module):
             self.process_layers.append(blk_lst)
             self.rays_layers.append(nn.Linear(camera_dim + 3, hidden_dim // int(2**i)))
             self.ups.append(
-                ConvUpsampleShuffleResidual(
+                ConvUpsampleShuffle(
                     hidden_dim // int(2**i),
                     expansion=expansion,
                     kernel_size=7,
                     num_layers=2,
                 )
             )
-            self.depth_mlp.append(
-                MLP(
-                    input_dim=hidden_dim // int(2 ** (i + 1)),
-                    output_dim=16,
-                    expansion=1,
-                )
+            self.norms.append(nn.LayerNorm(hidden_dim // int(2 ** (i + 1))))
+            self.out_layers.append(
+                nn.Conv2d(hidden_dim // int(2 ** (i + 1)), 1, 3, padding=1)
             )
-            self.confidence_mlp.append(
-                MLP(
-                    input_dim=hidden_dim // int(2 ** (i + 1)),
-                    output_dim=16,
-                    expansion=1,
-                )
+            self.confidence_norms.append(nn.LayerNorm(hidden_dim // int(2 ** (i + 1))))
+            self.confidence_out_layers.append(
+                nn.Conv2d(hidden_dim // int(2 ** (i + 1)), 1, 3, padding=1)
             )
-        self.to_depth = nn.Conv2d(
-            16 * len(depths), 1, 7, padding=3, padding_mode="reflect"
-        )
-        self.to_confidence = nn.Conv2d(
-            16 * len(depths), 1, 7, padding=3, padding_mode="reflect"
-        )
 
     def set_original_shapes(self, shapes: tuple[int, int]):
         self.original_shapes = shapes
@@ -255,8 +249,9 @@ class DepthHead(nn.Module):
         return embedded_rays
 
     def decode_depth(self, latents_16, rays, shapes):
+        dtype = latents_16.dtype
         latents = latents_16
-        out_features, depths, confidences = [], [], []
+        out_features, confidences, outs = [], [], []
         for i, (up, layers, rays_embedding) in enumerate(
             zip(self.ups, self.process_layers, rays)
         ):
@@ -278,32 +273,48 @@ class DepthHead(nn.Module):
             )
             out_features.append(out)
 
-        # aggregate output and project to depth
-        for i, (layer, features) in enumerate(
-            zip(self.depth_mlp[::-1], out_features[::-1])
+        for i, (norm, out_layer, features) in enumerate(
+            zip(self.norms[::-1], self.out_layers[::-1], out_features[::-1])
         ):
-            out_depth_features = layer(features).permute(0, 3, 1, 2)
-            out_depth_features = F.interpolate(
-                out_depth_features, size=self.original_shapes, mode="bilinear"
+            features = norm(features)
+            out_d = out_layer(features.permute(0, 3, 1, 2))
+            outs.append(out_d)
+        out = sum(
+            F.interpolate(
+                x,
+                size=outs[0].shape[-2:],
+                mode="bilinear",
             )
-            depths.append(out_depth_features)
-        logdepth = self.to_depth(torch.cat(depths, dim=1))
+            for x in outs
+        )
+        out = out / len(outs)
+        # jit complains, fix as list (loose dyn input)
+        out_shapes = [int(s) for s in out.shape[1:]]
+        out = F.layer_norm(out.float(), out_shapes)
+        out = out.clamp(-10.0, 10.0).exp().to(dtype, non_blocking=True)
 
-        # aggregate output and project to confidences
-        for i, (layer, features) in enumerate(
-            zip(self.confidence_mlp[::-1], out_features[::-1])
+        for i, (norm, out_layer, features) in enumerate(
+            zip(
+                self.confidence_norms[::-1],
+                self.confidence_out_layers[::-1],
+                out_features[::-1],
+            )
         ):
-            out_conf_features = layer(features).permute(0, 3, 1, 2)
-            out_conf_features = F.interpolate(
-                out_conf_features, size=self.original_shapes, mode="bilinear"
+            features = norm(features)
+            out_c = out_layer(features.permute(0, 3, 1, 2))
+            confidences.append(out_c)
+        confidence = sum(
+            F.interpolate(
+                x,
+                size=confidences[0].shape[-2:],
+                mode="bilinear",
             )
-            confidences.append(out_conf_features)
-        confidence = self.to_confidence(torch.cat(confidences, dim=1))
-
-        # apply sigmoid ot get conf in [0, 1]
+            for x in confidences
+        )
+        confidence = confidence / len(confidences)
         confidence = torch.sigmoid(confidence)
 
-        return logdepth, confidence
+        return out, confidence
 
     def init_latents(self, features, shapes):
         # Generate latents with init as pooled features
@@ -338,9 +349,9 @@ class DepthHead(nn.Module):
         latents_16 = self.prompt_camera(latents_16, context=rays_embeddings[0])
 
         # Decode depth
-        logdepth, confidence = self.decode_depth(latents_16, rays_embeddings, shapes)
+        out, confidence = self.decode_depth(latents_16, rays_embeddings, shapes)
 
-        return logdepth, confidence, latents_16
+        return out, confidence, latents_16
 
 
 class Decoder(nn.Module):
@@ -428,7 +439,6 @@ class Decoder(nn.Module):
     def forward(self, inputs, image_metas) -> torch.Tensor:
         B, C, H, W = inputs["image"].shape
         device = inputs["image"].device
-        dtype = inputs["image"].dtype
 
         # get features in b n d format
         # level shapes, the shape per level, for swin like [[128, 128], [64, 64],...], for vit [[32,32]] -> mult times resolutions
@@ -496,27 +506,21 @@ class Decoder(nn.Module):
         # run bulk of the model
         self.depth_layer.set_shapes(common_shape)
         self.depth_layer.set_original_shapes((H, W))
-        logdepth, confidence, depth_features = self.depth_layer(
+        out_normalized, confidence, depth_features = self.depth_layer(
             features=features,
             rays_hr=rays,
             pos_embed=pos_embed,
             level_embed=level_embed,
         )
-        logdepth = logdepth.to(torch.float32, non_blocking=True)
-
-        # norm in log space, why performs better?
-        depth_normalized = F.layer_norm(logdepth, logdepth.shape[1:]).exp()
-
-        depth = (
-            depth_normalized + shift
-        ) * scale  # shift is scale invariant if we do (x + mu) * sigma
-        depth = F.softplus(depth, beta=10.0).to(dtype, non_blocking=True)
+        # shift is scale invariant if we do (x + mu) * sigma
+        out = (out_normalized + shift) * scale
 
         outputs = {
-            "depth": depth,
+            "depth": out.clamp(min=1e-3),
             "confidence": confidence,
-            "depth_features": depth_features,
             "K": intrinsics,
+            "rays": rays,
+            "depth_features": depth_features,
         }
         return outputs
 

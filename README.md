@@ -1,7 +1,8 @@
-[![arXiv](https://img.shields.io/badge/arXiv-UniDepth-red)](https://arxiv.org/abs/2403.18913)
-[![HuggingFace](https://img.shields.io/badge/%F0%9F%A4%97%20HuggingFace-Cooming%20Soon-yellow)](https://huggingface.co/spaces/lpiccinelli/UniDepth)
+[![arXiv](https://img.shields.io/badge/arXiv-2403.18913-blue?logo=arxiv&color=%23B31B1B)](https://arxiv.org/abs/2403.18913)
+[![ProjectPage](https://img.shields.io/badge/Project_Page-UniDepth-blue)](https://lpiccinelli-eth.github.io/pub/unidepth/)
+<!-- [![HuggingFace](https://img.shields.io/badge/%F0%9F%A4%97%20HuggingFace-Cooming%20Soon-yellow)](https://huggingface.co/spaces/lpiccinelli/UniDepth) -->
 
-[![KITTI Benchmark](https://img.shields.io/badge/KITTI%20Benchmark-1st%20(at%20submission%20time)-blue)](https://www.cvlibs.net/datasets/kitti/eval_depth.php?benchmark=depth_prediction)
+[![KITTI Benchmark](https://img.shields.io/badge/KITTI%20Benchmark-1st%20(at%20submission%20time)-orange)](https://www.cvlibs.net/datasets/kitti/eval_depth.php?benchmark=depth_prediction)
 [![PWC](https://img.shields.io/endpoint.svg?url=https://paperswithcode.com/badge/unidepth-universal-monocular-metric-depth/monocular-depth-estimation-on-nyu-depth-v2)](https://paperswithcode.com/sota/monocular-depth-estimation-on-nyu-depth-v2?p=unidepth-universal-monocular-metric-depth)
 [![PWC](https://img.shields.io/endpoint.svg?url=https://paperswithcode.com/badge/unidepth-universal-monocular-metric-depth/monocular-depth-estimation-on-kitti-eigen)](https://paperswithcode.com/sota/monocular-depth-estimation-on-kitti-eigen?p=unidepth-universal-monocular-metric-depth)
 
@@ -12,7 +13,7 @@
 
 > [**UniDepth: Universal Monocular Metric Depth Estimation**](https://arxiv.org/abs/2403.18913),  
 > Luigi Piccinelli, Yung-Hsu Yang, Christos Sakaridis, Mattia Segu, Siyuan Li, Luc Van Gool, Fisher Yu,  
-> CVPR 2024 (to appear),  
+> CVPR 2024,  
 > *Paper at [arXiv 2403.18913](https://arxiv.org/pdf/2403.18913.pdf)*  
 
 
@@ -20,7 +21,7 @@
 
 - [ ] Release UniDepth on PyPI.
 - [ ] Release HuggingFace/Gradio demo.
-- [ ] Release smaller V2 models (Small and Base).
+- [x] `12.06.2024`: Release smaller V2 models (Base is coming soon).
 - [x] `01.05.2024`: Release UniDepthV2.
 - [x] `02.04.2024`: Release UniDepth as python package.
 - [x] `01.04.2024`: Inference code and V1 models are released.
@@ -141,13 +142,49 @@ data = {"image": rgb, "K": intrinsics}
 predictions = model(data, {})
 ```
 
-Please visit [Hugging Face](https://huggingface.co/lpiccinelli) to access the repo models with weights. You can load UniDepth as:
+## Model Zoo
+
+The available models are the following:
+
+<table border="0">
+    <tr>
+        <th>Model</th>
+        <th>Backbone</th>
+        <th>Name</th>
+    </tr>
+    <tr>
+        <td rowspan="2"><b>UnidepthV1</b></td>
+        <td>ConvNext-L</td>
+        <td><a href="https://huggingface.co/lpiccinelli/unidepth-v1-cnvnxtl">unidepth-v1-cnvnxtl</a></td>
+    </tr>
+    <tr>
+        <td>ViT-L</td>
+        <td><a href="https://huggingface.co/lpiccinelli/unidepth-v1-vitl14">unidepth-v1-vitl14</a></td>
+    </tr>
+    <hr style="border: 2px solid black;">
+    <tr>
+        <td rowspan="3"><b>UnidepthV2</b></td>
+        <td>ViT-S</td>
+        <td><a href="https://huggingface.co/lpiccinelli/unidepth-v2-vits14">unidepth-v2-vits14</a></td>
+    </tr>
+    <tr>
+        <td>ViT-B</td>
+        <td>unidepth-v1-vitb14 (Coming Soon)</td>
+    </tr>
+    <tr>
+        <td>ViT-L</td>
+        <td><a href="https://huggingface.co/lpiccinelli/unidepth-v2-vitl14">unidepth-v2-vitl14</a></td>
+    </tr>
+</table>
+
+Please visit [Hugging Face](https://huggingface.co/lpiccinelli) or click on the links above to access the repo models with weights.
+You can load UniDepth as the following, with `name` variable matching the table above:
 
 ```python
 from unidepth.models import UniDepthV1, UniDepthV2
 
-model_v1 = UniDepthV1.from_pretrained(f"lpiccinelli/unidepth-v1-{backbone}")
-model_v2 = UniDepthV2.from_pretrained(f"lpiccinelli/unidepth-v2-{backbone}")
+model_v1 = UniDepthV1.from_pretrained(f"lpiccinelli/{name}")
+model_v2 = UniDepthV2.from_pretrained(f"lpiccinelli/{name}")
 ```
 
 In addition, we provide loading from TorchHub as:
@@ -159,7 +196,6 @@ backbone = "vitl14"
 model = torch.hub.load("lpiccinelli-eth/UniDepth", "UniDepth", version=version, backbone=backbone, pretrained=True, trust_repo=True, force_reload=True)
 ```
 
-where backbones available are "vitl14" and "cnvnxtl", and versions available are "v1" and "v2".
 You can look into function `UniDepth` in [hubconf.py](hubconf.py) to see how to instantiate the model from local file: provide a local `path` in line 34.
 
 
@@ -202,10 +238,10 @@ If you find any bug in the code, please report to Luigi Piccinelli (lpiccinelli@
 If you find our work useful in your research please consider citing our publication:
 ```bibtex
 @inproceedings{piccinelli2024unidepth,
-    title={UniDepth: Universal Monocular Metric Depth Estimation},
-    author = {Piccinelli, Luigi and Yang, Yung-Hsu and Sakaridis, Christos and Segu, Mattia and Li, Siyuan and Van Gool, Luc and Yu, Fisher},
-    booktitle = {IEEE Conference on Computer Vision and Pattern Recognition (CVPR)},
-    year={2024}
+    title     = {{U}ni{D}epth: Universal Monocular Metric Depth Estimation},
+    author    = {Piccinelli, Luigi and Yang, Yung-Hsu and Sakaridis, Christos and Segu, Mattia and Li, Siyuan and Van Gool, Luc and Yu, Fisher},
+    booktitle = {Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR)},
+    year      = {2024}
 }
 ```
 

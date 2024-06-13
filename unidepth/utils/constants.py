@@ -4,6 +4,7 @@ Licensed under the CC-BY NC 4.0 license (http://creativecommons.org/licenses/by-
 """
 
 import math
+
 import torch
 
 OPENAI_DATASET_MEAN = (0.48145466, 0.4578275, 0.40821073)

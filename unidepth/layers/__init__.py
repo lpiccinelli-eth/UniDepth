@@ -1,11 +1,11 @@
-from .activation import SwiGLU, GEGLU
-from .convnext import CvnxtBlock
+from .activation import GEGLU, SwiGLU
 from .attention import AttentionBlock, AttentionDecoderBlock
+from .convnext import CvnxtBlock
+from .mlp import MLP
 from .nystrom_attention import NystromBlock
 from .positional_encoding import PositionEmbeddingSine
-from .upsample import ConvUpsample, ConvUpsampleShuffle
-from .mlp import MLP
-
+from .upsample import (ConvUpsample, ConvUpsampleShuffle,
+                       ConvUpsampleShuffleResidual)
 
 __all__ = [
     "SwiGLU",
@@ -18,4 +18,5 @@ __all__ = [
     "MLP",
     "ConvUpsampleShuffle",
     "AttentionDecoderBlock",
+    "ConvUpsampleShuffleResidual",
 ]

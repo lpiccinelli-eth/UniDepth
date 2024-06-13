@@ -6,8 +6,8 @@
 
 from typing import Callable, Optional
 
-from torch import Tensor, nn
 import torch.nn.functional as F
+from torch import Tensor, nn
 
 
 class SwiGLUFFN(nn.Module):

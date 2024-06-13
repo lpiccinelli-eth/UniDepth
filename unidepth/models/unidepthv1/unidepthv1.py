@@ -3,9 +3,9 @@ Author: Luigi Piccinelli
 Licensed under the CC-BY NC 4.0 license (http://creativecommons.org/licenses/by-nc/4.0/)
 """
 
-from math import ceil
-from copy import deepcopy
 import importlib
+from copy import deepcopy
+from math import ceil
 
 import torch
 import torch.nn as nn
@@ -14,15 +14,13 @@ import torchvision.transforms.functional as TF
 from einops import rearrange
 from huggingface_hub import PyTorchModelHubMixin
 
-from unidepth.utils.geometric import (
-    generate_rays,
-    spherical_zbuffer_to_euclidean,
-)
-from unidepth.utils.misc import get_params
-from unidepth.utils.distributed import is_main_process
-from unidepth.utils.constants import IMAGENET_DATASET_MEAN, IMAGENET_DATASET_STD
 from unidepth.models.unidepthv1.decoder import Decoder
-
+from unidepth.utils.constants import (IMAGENET_DATASET_MEAN,
+                                      IMAGENET_DATASET_STD)
+from unidepth.utils.distributed import is_main_process
+from unidepth.utils.geometric import (generate_rays,
+                                      spherical_zbuffer_to_euclidean)
+from unidepth.utils.misc import get_params
 
 MAP_BACKBONES = {"ViTL14": "vitl14", "ConvNextL": "cnvnxtl"}
 
@@ -307,7 +305,7 @@ class UniDepthV1(
             **config["training"],
             **config["data"],
             **config["model"]["pixel_encoder"],
-            "interpolate_offset": 0.1
+            "interpolate_offset": 0.1,
         }
         pixel_encoder = pixel_encoder_factory(pixel_encoder_config)
 

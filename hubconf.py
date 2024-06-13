@@ -16,7 +16,7 @@ MAP_VERSIONS = {
 
 BACKBONES = {
     "v1": ["vitl14", "cnvnxtl"],
-    "v2": ["vitl14"]
+    "v2": ["vitl14", "vits14"]
 }
 
 

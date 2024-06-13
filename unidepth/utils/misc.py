@@ -1,14 +1,12 @@
-from functools import partial, wraps
 from collections import defaultdict
+from functools import partial, wraps
 
 import numpy as np
-from scipy import interpolate
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
-from einops import rearrange, repeat, reduce
+from einops import rearrange, reduce, repeat
+from scipy import interpolate
 
 
 def max_stack(tensors):
