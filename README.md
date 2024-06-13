@@ -1,9 +1,8 @@
-[![arXiv](https://img.shields.io/badge/arXiv-2403.18913-blue?style=for-the-badge&logo=arxiv&color=%23B31B1B)](https://arxiv.org/abs/2403.18913)
-
-[![ProjectPage](https://img.shields.io/badge/Project_Page-UniDepth-blue?style=for-the-badge)](https://lpiccinelli-eth.github.io/pub/unidepth/)
+[![arXiv](https://img.shields.io/badge/arXiv-2403.18913-blue?logo=arxiv&color=%23B31B1B)](https://arxiv.org/abs/2403.18913)
+[![ProjectPage](https://img.shields.io/badge/Project_Page-UniDepth-blue)](https://lpiccinelli-eth.github.io/pub/unidepth/)
 <!-- [![HuggingFace](https://img.shields.io/badge/%F0%9F%A4%97%20HuggingFace-Cooming%20Soon-yellow)](https://huggingface.co/spaces/lpiccinelli/UniDepth) -->
 
-[![KITTI Benchmark](https://img.shields.io/badge/KITTI%20Benchmark-1st%20(at%20submission%20time)-blue)](https://www.cvlibs.net/datasets/kitti/eval_depth.php?benchmark=depth_prediction)
+[![KITTI Benchmark](https://img.shields.io/badge/KITTI%20Benchmark-1st%20(at%20submission%20time)-orange)](https://www.cvlibs.net/datasets/kitti/eval_depth.php?benchmark=depth_prediction)
 [![PWC](https://img.shields.io/endpoint.svg?url=https://paperswithcode.com/badge/unidepth-universal-monocular-metric-depth/monocular-depth-estimation-on-nyu-depth-v2)](https://paperswithcode.com/sota/monocular-depth-estimation-on-nyu-depth-v2?p=unidepth-universal-monocular-metric-depth)
 [![PWC](https://img.shields.io/endpoint.svg?url=https://paperswithcode.com/badge/unidepth-universal-monocular-metric-depth/monocular-depth-estimation-on-kitti-eigen)](https://paperswithcode.com/sota/monocular-depth-estimation-on-kitti-eigen?p=unidepth-universal-monocular-metric-depth)
 
@@ -14,7 +13,7 @@
 
 > [**UniDepth: Universal Monocular Metric Depth Estimation**](https://arxiv.org/abs/2403.18913),  
 > Luigi Piccinelli, Yung-Hsu Yang, Christos Sakaridis, Mattia Segu, Siyuan Li, Luc Van Gool, Fisher Yu,  
-> CVPR 2024 (to appear),  
+> CVPR 2024,  
 > *Paper at [arXiv 2403.18913](https://arxiv.org/pdf/2403.18913.pdf)*  
 
 
@@ -179,7 +178,7 @@ The available models are the following:
 </table>
 
 Please visit [Hugging Face](https://huggingface.co/lpiccinelli) or click on the links above to access the repo models with weights.
-You can load UniDepth as the following, with name the same as in the above table:
+You can load UniDepth as the following, with `name` variable matching the table above:
 
 ```python
 from unidepth.models import UniDepthV1, UniDepthV2

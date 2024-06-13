@@ -47,7 +47,7 @@ def _check_resolution(shape_constraints, resolution_level):
         warnings.warn(
             "Resolution level is not set. Using max resolution. "
             "You can tradeoff resolution for speed by setting a number in [0,10]. "
-            "This can be achieved by setting model `resolution_level` attribute."
+            "This can be achieved by setting model's `resolution_level` attribute."
         )
         resolution_level = RESOLUTION_LEVELS
     pixel_bounds = sorted(shape_constraints["pixels_bounds_ori"])
@@ -61,7 +61,8 @@ def _check_resolution(shape_constraints, resolution_level):
     shape_constraints["pixels_bounds"] = [
         pixel_bounds[0]
         + ceil(pixel_range * clipped_resolution_level / RESOLUTION_LEVELS),
-        pixel_bounds[-1],
+        pixel_bounds[0]
+        + ceil(pixel_range * clipped_resolution_level / RESOLUTION_LEVELS),
     ]
     return shape_constraints
 
