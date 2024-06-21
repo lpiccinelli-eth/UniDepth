@@ -39,7 +39,7 @@ ndindex
 networkx
 ninja
 numexpr
-numpy
+numpy~=1.26
 opencv-python
 OpenEXR
 packaging
