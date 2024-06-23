@@ -21,7 +21,8 @@
 
 - [ ] Release UniDepth on PyPI.
 - [ ] Release HuggingFace/Gradio demo.
-- [x] `12.06.2024`: Release smaller V2 models (Base is coming soon).
+- [ ] Solve image corners artifacts (retraining in progress...)
+- [x] `12.06.2024`: Release smaller V2 models.
 - [x] `01.05.2024`: Release UniDepthV2.
 - [x] `02.04.2024`: Release UniDepth as python package.
 - [x] `01.04.2024`: Inference code and V1 models are released.
