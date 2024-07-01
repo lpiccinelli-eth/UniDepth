@@ -56,18 +56,13 @@ class UniDepthV2ONNX(UniDepthV2):
             size=(H, W),
             mode="bilinear",
         )
-        predictions_normalized = F.interpolate(
-            outs["depth_ssi"],
-            size=(H, W),
-            mode="bilinear",
-        )
         confidence = F.interpolate(
             outs["confidence"],
             size=(H, W),
             mode="bilinear",
         )
 
-        return outs["K"], predictions, predictions_normalized, confidence
+        return outs["K"], predictions, confidence
 
 
 class UniDepthV2wCamONNX(UniDepthV2):
@@ -141,7 +136,6 @@ def export(model, path, shape=(462, 616), with_camera=False):
     dynamic_axes_out = {
         "out_K": {0: "batch"},
         "depth": {0: "batch"},
-        "depth_ssi": {0: "batch"},
         "confidence": {0: "batch"},
     }
     torch.onnx.export(
@@ -165,7 +159,7 @@ if __name__ == "__main__":
         "--backbone",
         type=str,
         default="vitl14",
-        choices=["vitl14"],
+        choices=["vits14", "vitl14"],
         help="Backbone model",
     )
     parser.add_argument(

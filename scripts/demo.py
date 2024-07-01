@@ -47,7 +47,6 @@ if __name__ == "__main__":
     # set interpolation mode (only V2)
     # model.interpolation_mode = "bilinear"
 
-
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = model.to(device)
     demo(model)

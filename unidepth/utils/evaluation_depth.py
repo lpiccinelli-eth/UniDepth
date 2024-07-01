@@ -17,7 +17,6 @@ from unidepth.utils.constants import DEPTH_BINS
 # from chamfer_distance import ChamferDistance
 
 
-
 # chamfer_cls = ChamferDistance()
 
 

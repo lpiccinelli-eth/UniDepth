@@ -372,7 +372,7 @@ class Decoder(nn.Module):
         features_projected = self.input_adapter(
             features_flat_cat, splits
         )  # list [b hw c] shapes
-        features = torch.chunk(features_projected, len(splits), dim=-1)
+        features = torch.chunk(features_projected, splits.shape[0], dim=-1)
         return features
 
     def run_camera(self, cls_tokens, features, pos_embed, original_shapes, rays_gt):
@@ -386,7 +386,7 @@ class Decoder(nn.Module):
         cls_tokens = torch.cat(cls_tokens, dim=-1)
         cls_tokens = self.camera_token_adapter(cls_tokens, cls_tokens_splits)
         cls_tokens = torch.cat(
-            torch.chunk(cls_tokens, len(cls_tokens_splits), dim=-1), dim=1
+            torch.chunk(cls_tokens, cls_tokens_splits.shape[0], dim=-1), dim=1
         )
 
         # camera layer
@@ -416,7 +416,7 @@ class Decoder(nn.Module):
         cls_tokens = torch.cat(cls_tokens, dim=-1)
         cls_tokens = self.global_token_adapter(cls_tokens, cls_tokens_splits)
         cls_tokens = torch.cat(
-            torch.chunk(cls_tokens, len(cls_tokens_splits), dim=-1), dim=1
+            torch.chunk(cls_tokens, cls_tokens_splits.shape[0], dim=-1), dim=1
         )
 
         scale, shift = self.global_layer(
@@ -505,7 +505,8 @@ class Decoder(nn.Module):
         logdepth = logdepth.to(torch.float32, non_blocking=True)
 
         # norm in log space, why performs better?
-        depth_normalized = F.layer_norm(logdepth, logdepth.shape[1:]).exp()
+        shapes = [int(x) for x in logdepth.shape[-2:]]
+        depth_normalized = F.layer_norm(logdepth, shapes).exp()
 
         depth = (
             depth_normalized + shift
