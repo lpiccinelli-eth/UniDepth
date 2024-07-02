@@ -201,21 +201,9 @@ class DepthHead(nn.Module):
         # camera_embedding
         # torch.cuda.synchronize()
         # start = time()
-        rays_embedding_16 = F.normalize(
-            flat_interpolate(rays_hr, old=self.original_shapes, new=shapes), dim=-1
-        )
-        rays_embedding_8 = F.normalize(
-            flat_interpolate(
-                rays_hr, old=self.original_shapes, new=[x * 2 for x in shapes]
-            ),
-            dim=-1,
-        )
-        rays_embedding_4 = F.normalize(
-            flat_interpolate(
-                rays_hr, old=self.original_shapes, new=[x * 4 for x in shapes]
-            ),
-            dim=-1,
-        )
+        rays_embedding_16 = flat_interpolate(rays_hr, old=self.original_shapes, new=shapes)
+        rays_embedding_8 = flat_interpolate(rays_hr, old=self.original_shapes, new=[x * 2 for x in shapes])
+        rays_embedding_4 = flat_interpolate(rays_hr, old=self.original_shapes, new=[x * 4 for x in shapes])
         rays_embedding_16 = self.project_rays16(rsh_cart_8(rays_embedding_16))
         rays_embedding_8 = self.project_rays8(rsh_cart_8(rays_embedding_8))
         rays_embedding_4 = self.project_rays4(rsh_cart_8(rays_embedding_4))
