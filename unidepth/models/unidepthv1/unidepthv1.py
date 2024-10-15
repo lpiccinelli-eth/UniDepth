@@ -20,7 +20,7 @@ from unidepth.utils.constants import (IMAGENET_DATASET_MEAN,
 from unidepth.utils.distributed import is_main_process
 from unidepth.utils.geometric import (generate_rays,
                                       spherical_zbuffer_to_euclidean)
-from unidepth.utils.misc import get_params
+from unidepth.utils.misc import get_params, match_gt
 
 MAP_BACKBONES = {"ViTL14": "vitl14", "ConvNextL": "cnvnxtl"}
 
@@ -108,12 +108,13 @@ class UniDepthV1(
     ):
         super().__init__()
         self.build(config)
+        self.build_losses(config)
         self.eps = eps
 
     def forward(self, inputs, image_metas):
         rgbs = inputs["image"]
-        gt_intrinsics = inputs.get("K")
-        H, W = rgbs.shape[-2:]
+        B, _, H, W = rgbs.shape
+        cameras = inputs["camera"]
 
         # Encode
         encoder_outputs, cls_tokens = self.pixel_encoder(rgbs)
@@ -125,23 +126,18 @@ class UniDepthV1(
         inputs["encoder_outputs"] = encoder_outputs
         inputs["cls_tokens"] = cls_tokens
 
-        # Get camera infos, if any
-        if gt_intrinsics is not None:
-            rays, angles = generate_rays(
-                gt_intrinsics, self.image_shape, noisy=self.training
-            )
-            inputs["rays"] = rays
-            inputs["angles"] = angles
-            inputs["K"] = gt_intrinsics
-            self.pixel_decoder.test_fixed_camera = True  # use GT camera in fwd
+        # Get camera rays for supervision, all in unit sphere
+        inputs["rays"] = rearrange(
+            cameras.get_rays(shapes=(B, H, W)), "b c h w -> b (h w) c"
+        )
 
         # Decode
-        pred_intrinsics, predictions, _ = self.pixel_decoder(inputs, {})
+        pred_intrinsics, predictions, depth_features = self.pixel_decoder(inputs, {})
         predictions = sum(
             [
                 F.interpolate(
                     x.clone(),
-                    size=self.image_shape,
+                    size=(H, W),
                     mode="bilinear",
                     align_corners=False,
                     antialias=True,
@@ -151,9 +147,23 @@ class UniDepthV1(
         ) / len(predictions)
 
         # Final 3D points backprojection
-        pred_angles = generate_rays(pred_intrinsics, (H, W), noisy=False)[-1]
+        pred_rays, pred_angles = generate_rays(pred_intrinsics, (H, W), noisy=False)
+
         # You may want to use inputs["angles"] if available?
         pred_angles = rearrange(pred_angles, "b (h w) c -> b c h w", h=H, w=W)
+
+        # reshape to match GT as paddings and shape
+        if not self.training:
+            depth_gt = inputs["depth"]
+            image_paddings = [image_metas[0]["paddings"]]
+            depth_paddings = [image_metas[0]["depth_paddings"]]
+            predictions = match_gt(
+                predictions, depth_gt, padding1=image_paddings, padding2=depth_paddings
+            )
+            pred_angles = match_gt(
+                pred_angles, depth_gt, padding1=image_paddings, padding2=depth_paddings
+            )
+
         points_3d = torch.cat((pred_angles, predictions), dim=1)
         points_3d = spherical_zbuffer_to_euclidean(
             points_3d.permute(0, 2, 3, 1)
@@ -162,12 +172,65 @@ class UniDepthV1(
         # Output data, use for loss computation
         outputs = {
             "angles": pred_angles,
+            "rays": pred_rays,
             "intrinsics": pred_intrinsics,
             "points": points_3d,
             "depth": predictions[:, -1:],
+            "cond_features": depth_features,
         }
         self.pixel_decoder.test_fixed_camera = False
-        return outputs
+        losses = self.compute_losses(outputs, inputs, image_metas)
+
+        return outputs, losses
+
+    def compute_losses(self, outputs, inputs, image_metas):
+        losses = {"opt": {}, "stat": {}}
+        if (
+            not self.training
+        ):  # only compute losses during training, avoid issues for mismatch size of pred and GT
+            return losses
+        losses_to_be_computed = list(self.losses.keys())
+
+        # depth loss
+        si = torch.tensor([x.get("si", False) for x in image_metas], device=self.device)
+        loss = self.losses["depth"]
+        depth_losses = loss(
+            outputs["depth"],
+            target=inputs["depth"],
+            mask=inputs["depth_mask"].clone(),
+            si=si,
+        )
+        losses["opt"][loss.name] = loss.weight * depth_losses.mean()
+        losses_to_be_computed.remove("depth")
+
+        # camera loss, here we apply to rays for simplicity
+        # in the original training was on angles
+        # however, we saw no difference (see supplementary)
+        loss = self.losses["camera"]
+        camera_losses = loss(outputs["rays"], target=inputs["rays"])
+        losses["opt"][loss.name] = loss.weight * camera_losses.mean()
+        losses_to_be_computed.remove("camera")
+
+        # invariance loss
+        flips = torch.tensor(
+            [x.get("flip", False) for x in image_metas], device=self.device
+        )
+        loss = self.losses["invariance"]
+        invariance_losses = loss(
+            outputs["cond_features"],
+            intrinsics=inputs["camera"].K,
+            mask=inputs["depth_mask"],
+            flips=flips,
+        )
+        losses["opt"][loss.name] = loss.weight * invariance_losses.mean()
+        losses_to_be_computed.remove("invariance")
+
+        # remaining losses, we expect no more losses to be computed
+        assert (
+            not losses_to_be_computed
+        ), f"Losses {losses_to_be_computed} not computed, revise `compute_loss` method"
+
+        return losses
 
     @torch.no_grad()
     def infer(self, rgbs: torch.Tensor, intrinsics=None, skip_camera=False):
@@ -292,7 +355,7 @@ class UniDepthV1(
         decoder_p, decoder_lr = get_params(
             self.pixel_decoder, config["training"]["lr"], config["training"]["wd"]
         )
-        return [*encoder_p, *decoder_p], [*encoder_lr, *decoder_lr]
+        return [*encoder_p, *decoder_p]
 
     @property
     def device(self):
@@ -326,3 +389,10 @@ class UniDepthV1(
         self.pixel_encoder = pixel_encoder
         self.pixel_decoder = Decoder(config)
         self.image_shape = config["data"]["image_shape"]
+
+    def build_losses(self, config):
+        self.losses = {}
+        for loss_name, loss_config in config["training"]["losses"].items():
+            mod = importlib.import_module("unidepth.ops.losses")
+            loss_factory = getattr(mod, loss_config["name"])
+            self.losses[loss_name] = loss_factory.build(loss_config)

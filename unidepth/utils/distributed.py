@@ -1,9 +1,5 @@
-"""
-Author: Luigi Piccinelli
-Licensed under the CC-BY NC 4.0 license (http://creativecommons.org/licenses/by-nc/4.0/)
-"""
-
 import os
+import pickle
 import platform
 import subprocess
 import warnings
@@ -13,6 +9,8 @@ import torch
 import torch.utils.data.distributed
 from torch import distributed as dist
 from torch import multiprocessing as mp
+
+_LOCAL_PROCESS_GROUP = None
 
 
 def is_dist_avail_and_initialized():
@@ -27,6 +25,35 @@ def get_rank():
     if not is_dist_avail_and_initialized():
         return 0
     return dist.get_rank()
+
+
+def get_local_rank() -> int:
+    """
+    Returns:
+        The rank of the current process within the local (per-machine) process group.
+    """
+    if not is_dist_avail_and_initialized():
+        return 0
+    assert _LOCAL_PROCESS_GROUP is not None
+    return dist.get_rank(group=_LOCAL_PROCESS_GROUP)
+
+
+def get_local_size() -> int:
+    """
+    Returns:
+        The size of the per-machine process group,
+        i.e. the number of processes per machine.
+    """
+    if not is_dist_avail_and_initialized():
+        return 1
+    assert _LOCAL_PROCESS_GROUP is not None
+    return dist.get_world_size(group=_LOCAL_PROCESS_GROUP)
+
+
+def get_world_size():
+    if not is_dist_avail_and_initialized():
+        return 1
+    return dist.get_world_size()
 
 
 def barrier():
@@ -69,44 +96,34 @@ def setup_multi_processes(cfg):
         mp.set_start_method(mp_start_method, force=True)
 
     # disable opencv multithreading to avoid system being overloaded
-    opencv_num_threads = cfg.get("opencv_num_threads", 0)
-    cv2.setNumThreads(opencv_num_threads)
+    # opencv_num_threads = cfg.get('opencv_num_threads', 0)
+    # cv2.setNumThreads(opencv_num_threads)
 
     # setup OMP threads
     # This code is referred from https://github.com/pytorch/pytorch/blob/master/torch/distributed/run.py  # noqa
-    workers_per_gpu = cfg.get("workers_per_gpu", 4)
+    # workers_per_gpu = cfg.get('workers_per_gpu', 4)
 
-    if "OMP_NUM_THREADS" not in os.environ and workers_per_gpu > 1:
-        omp_num_threads = 1
-        warnings.warn(
-            f"Setting OMP_NUM_THREADS environment variable for each process "
-            f"to be {omp_num_threads} in default, to avoid your system being "
-            f"overloaded, please further tune the variable for optimal "
-            f"performance in your application as needed."
-        )
-        os.environ["OMP_NUM_THREADS"] = str(omp_num_threads)
+    # if 'OMP_NUM_THREADS' not in os.environ and workers_per_gpu > 1:
+    #     omp_num_threads = 1
+    #     warnings.warn(
+    #         f'Setting OMP_NUM_THREADS environment variable for each process '
+    #         f'to be {omp_num_threads} in default, to avoid your system being '
+    #         f'overloaded, please further tune the variable for optimal '
+    #         f'performance in your application as needed.')
+    #     os.environ['OMP_NUM_THREADS'] = str(omp_num_threads)
 
     # setup MKL threads
-    if "MKL_NUM_THREADS" not in os.environ and workers_per_gpu > 1:
-        mkl_num_threads = os.environ.get("OMP_NUM_THREADS", 1)
-        warnings.warn(
-            f"Setting MKL_NUM_THREADS environment variable for each process "
-            f"to be {mkl_num_threads} in default, to avoid your system being "
-            f"overloaded, please further tune the variable for optimal "
-            f"performance in your application as needed."
-        )
-        os.environ["MKL_NUM_THREADS"] = str(mkl_num_threads)
+    # if 'MKL_NUM_THREADS' not in os.environ and workers_per_gpu > 1:
+    #     mkl_num_threads = os.environ.get('OMP_NUM_THREADS', 1)
+    #     warnings.warn(
+    #         f'Setting MKL_NUM_THREADS environment variable for each process '
+    #         f'to be {mkl_num_threads} in default, to avoid your system being '
+    #         f'overloaded, please further tune the variable for optimal '
+    #         f'performance in your application as needed.')
+    #     os.environ['MKL_NUM_THREADS'] = str(mkl_num_threads)
 
 
 def setup_slurm(backend: str, port: str) -> None:
-    """Initialize slurm distributed training environment.
-    If argument ``port`` is not specified, then the master port will be system
-    environment variable ``MASTER_PORT``. If ``MASTER_PORT`` is not in system
-    environment variable, then a default port ``29500`` will be used.
-    Args:
-        backend (str): Backend of torch.distributed.
-        port (int, optional): Master port. Defaults to None.
-    """
     proc_id = int(os.environ["SLURM_PROCID"])
     ntasks = int(os.environ["SLURM_NTASKS"])
     node_list = os.environ["SLURM_NODELIST"]
@@ -159,13 +176,10 @@ def sync_tensor_across_gpus(t, dim=0, cat=True):
     return all_ts
 
 
-import pickle
-
-
 def sync_string_across_gpus(keys: list[str], device, dim=0):
     keys_serialized = pickle.dumps(keys, protocol=pickle.HIGHEST_PROTOCOL)
-    keys_serialized_tensor = torch.frombuffer(keys_serialized, dtype=torch.uint8).to(
-        device
+    keys_serialized_tensor = (
+        torch.frombuffer(keys_serialized, dtype=torch.uint8).clone().to(device)
     )
     keys_serialized_tensor = sync_tensor_across_gpus(
         keys_serialized_tensor, dim=0, cat=False
@@ -176,3 +190,55 @@ def sync_string_across_gpus(keys: list[str], device, dim=0):
         for key in pickle.loads(bytes(keys.cpu().tolist()))
     ]
     return keys
+
+
+def create_local_process_group() -> None:
+    num_workers_per_machine = torch.cuda.device_count()
+    global _LOCAL_PROCESS_GROUP
+    assert _LOCAL_PROCESS_GROUP is None
+    assert get_world_size() % num_workers_per_machine == 0
+    num_machines = get_world_size() // num_workers_per_machine
+    machine_rank = get_rank() // num_workers_per_machine
+    for i in range(num_machines):
+        ranks_on_i = list(
+            range(i * num_workers_per_machine, (i + 1) * num_workers_per_machine)
+        )
+        pg = dist.new_group(ranks_on_i)
+        if i == machine_rank:
+            _LOCAL_PROCESS_GROUP = pg
+
+
+def _get_global_gloo_group():
+    if dist.get_backend() == "nccl":
+        return dist.new_group(backend="gloo")
+    else:
+        return dist.group.WORLD
+
+
+def all_gather(data, group=None):
+    if get_world_size() == 1:
+        return [data]
+    if group is None:
+        group = (
+            _get_global_gloo_group()
+        )  # use CPU group by default, to reduce GPU RAM usage.
+    world_size = dist.get_world_size(group)
+    if world_size == 1:
+        return [data]
+
+    output = [None for _ in range(world_size)]
+    dist.all_gather_object(output, data, group=group)
+    return output
+
+
+def local_broadcast_process_authkey():
+    if get_local_size() == 1:
+        return
+    local_rank = get_local_rank()
+    authkey = bytes(mp.current_process().authkey)
+    all_keys = all_gather(authkey)
+    local_leader_key = all_keys[get_rank() - local_rank]
+    if authkey != local_leader_key:
+        # print("Process authkey is different from the key of local leader! workers are launched independently ??")
+        # print("Overwriting local authkey ...")
+        mp.current_process().authkey = local_leader_key

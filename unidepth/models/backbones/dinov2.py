@@ -1,3 +1,4 @@
+import contextlib
 import logging
 import math
 from functools import partial
@@ -98,6 +99,7 @@ def get_parameter_groups(model, lr, wd=1e-5, ld=0.9, skip_list=()):
             }
         parameter_group_vars[group_name]["params"].append(param)
         parameter_group_names[group_name]["params"].append(name)
+
     return list(parameter_group_vars.values()), [
         v["lr"] for k, v in parameter_group_vars.items()
     ]
@@ -137,6 +139,7 @@ class DinoVisionTransformer(nn.Module):
         interpolate_antialias=False,
         interpolate_offset=0.0,
         use_norm=False,
+        frozen_stages=0,
     ):
         """
         Args:
@@ -166,6 +169,7 @@ class DinoVisionTransformer(nn.Module):
         self.num_features = self.embed_dim = (
             embed_dim  # num_features for consistency with other models
         )
+        self.frozen_stages = frozen_stages
         self.embed_dims = [embed_dim] * output_idx[-1]
         self.num_tokens = 1
         self.n_blocks = depth
@@ -247,7 +251,7 @@ class DinoVisionTransformer(nn.Module):
             self.chunked_blocks = False
             self.blocks = nn.ModuleList(blocks_list)
 
-        self.norm = norm_layer(embed_dim)
+        self.norm = nn.LayerNorm(embed_dim)
         self.use_norm = use_norm
         self.head = nn.Identity()
         self.mask_token = nn.Parameter(torch.zeros(1, embed_dim))
@@ -301,7 +305,8 @@ class DinoVisionTransformer(nn.Module):
 
     def prepare_tokens_with_masks(self, x, masks=None):
         B, nc, w, h = x.shape
-        x = self.patch_embed(x)
+        with torch.no_grad() if self.frozen_stages > -1 else contextlib.nullcontext():
+            x = self.patch_embed(x)
         if masks is not None:
             masks = masks.bool().view(B, -1, 1)
             x = torch.where(masks, self.mask_token.to(x.dtype).unsqueeze(0), x)
@@ -322,11 +327,19 @@ class DinoVisionTransformer(nn.Module):
         x = self.prepare_tokens_with_masks(x, masks)
         outputs = []
         for i, blk in enumerate(self.blocks):
-            x = blk(x)
+            with (
+                torch.no_grad() if i < self.frozen_stages else contextlib.nullcontext()
+            ):
+                x = blk(x)
             outputs.append(x)
 
         if self.use_norm:
-            outputs = [self.norm(out) for out in outputs]
+            with (
+                torch.no_grad()
+                if self.frozen_stages >= len(self.blocks)
+                else contextlib.nullcontext()
+            ):
+                outputs = [self.norm(out) for out in outputs]
         class_tokens = [out[:, :1] for out in outputs]
         outputs = [out[:, self.num_register_tokens + 1 :] for out in outputs]
         outputs = [out.reshape(batch_size, *shapes, -1) for out in outputs]
@@ -345,6 +358,21 @@ class DinoVisionTransformer(nn.Module):
 
     def train(self, mode=True):
         super().train(mode)
+        if self.frozen_stages > -1:
+            for p in self.patch_embed.parameters():
+                p.requires_grad = False
+
+        for i, blk in enumerate(self.blocks):
+            if i < self.frozen_stages:
+                blk.eval()
+                for p in blk.parameters():
+                    p.requires_grad = False
+
+        for p in self.norm.parameters():
+            p.requires_grad = self.frozen_stages <= len(self.blocks) and self.use_norm
+
+        self.cls_token.requires_grad = self.frozen_stages < 1
+        self.pos_embed.requires_grad = self.frozen_stages < 1
         self.mask_token.requires_grad = False
         self.register_tokens.requires_grad = False
 
@@ -419,10 +447,10 @@ def _make_dinov2_model(
     use_norm: bool = False,
     export: bool = False,
     interpolate_offset: float = 0.0,
+    frozen_stages: int = 0,
     **kwargs,
 ):
     model_name = _make_dinov2_model_name(arch_name, patch_size)
-
     vit_kwargs = dict(
         img_size=img_size,
         patch_size=patch_size,
@@ -435,6 +463,7 @@ def _make_dinov2_model(
         use_norm=use_norm,
         export=export,
         interpolate_offset=interpolate_offset,
+        frozen_stages=frozen_stages,
     )
     vit_kwargs.update(**kwargs)
     model = eval(arch_name)(**vit_kwargs)
@@ -452,4 +481,6 @@ def _make_dinov2_model(
         state_dict = torch.load(pretrained, map_location="cpu")
         info = model.load_state_dict(state_dict, strict=False)
         print(f"loading from {pretrained} with:", info)
+    else:
+        print("Not loading pretrained weights for backbone")
     return model
