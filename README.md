@@ -210,6 +210,11 @@ To summarize the main differences are:
 - ONNX support
 
 
+## Training
+
+Please [visit the training README](scripts/README.md) for more information.
+
+
 ## Results
 
 ### Metric Depth Estimation
