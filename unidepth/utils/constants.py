@@ -18,5 +18,3 @@ DEPTH_BINS = torch.cat(
     ),
     dim=0,
 )
-LOGERR_BINS = torch.linspace(-2, 2, steps=128 + 1)
-LINERR_BINS = torch.linspace(-50, 50, steps=256 + 1)
