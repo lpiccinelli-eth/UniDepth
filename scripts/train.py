@@ -180,7 +180,7 @@ def main_worker(config: Dict[str, Any], args: argparse.Namespace):
     augmentations_db = config["data"].get("augmentations", {})
     image_shape = config["data"]["image_shape"]
     nsteps_accumulation_gradient = config["training"]["nsteps_accumulation_gradient"]
-    batch_size = config["training"]["batch_size"]
+    batch_size = config["training"]["batch_size"] // config["data"]["num_copies"]
 
     is_shell = int(os.environ.get("SHELL_JOB", 0))
     run_id = sync_string_across_gpus(
@@ -202,7 +202,7 @@ def main_worker(config: Dict[str, Any], args: argparse.Namespace):
         # restore the original batchsize, not acquired by other calls from now on
         if args.distributed:
             config["training"]["batch_size"] = (
-                config["training"]["batch_size"] * args.world_size
+                config["training"]["batch_size"] * args.world_size * config["data"]["num_copies"]
             )
         wandb.init(
             project="UniDepth",
