@@ -269,10 +269,11 @@ class SequenceDataset(BaseDataset):
         return results
 
     def preprocess(self, results):
+        results = self.replicate(results)
         self.resizer.ctx = None
         for i, seq in enumerate(results["sequence_fields"]):
             results[seq] = self.resizer(results[seq])
-
+            self.resizer.ctx = None if self.num_copies > 1 else self.resizer.ctx
             num_pts = torch.count_nonzero(results[seq]["depth"] > 0)
             if num_pts < 50:
                 raise IndexError(f"Too few points in depth map ({num_pts})")
@@ -306,15 +307,15 @@ class SequenceDataset(BaseDataset):
         return results
 
     def __getitem__(self, idx):
-        try:
-            if isinstance(idx, (list, tuple)):
-                results = [self.get_single_sequence(i) for i in idx]
-            else:
-                results = self.get_single_sequence(idx)
-        except Exception as e:
-            print(f"Error loading sequence {idx} for {self.__class__.__name__}: {e}")
-            idx = np.random.randint(0, len(self.dataset))
-            results = self[idx]
+        # try:
+        if isinstance(idx, (list, tuple)):
+            results = [self.get_single_sequence(i) for i in idx]
+        else:
+            results = self.get_single_sequence(idx)
+        # except Exception as e:
+        #     print(f"Error loading sequence {idx} for {self.__class__.__name__}: {e}")
+        #     idx = np.random.randint(0, len(self.dataset))
+        #     results = self[idx]
         return results
 
     def log_load_dataset(self):

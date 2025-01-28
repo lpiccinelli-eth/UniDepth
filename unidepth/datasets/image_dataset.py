@@ -121,8 +121,16 @@ class ImageDataset(BaseDataset):
         return results
 
     def preprocess(self, results):
-        self.resizer.ctx = None
-        results = self.resizer(results)
+        results = self.replicate(results)
+        for i, seq in enumerate(results["sequence_fields"]):
+            self.resizer.ctx = None
+            results[seq] = self.resizer(results[seq])
+            num_pts = torch.count_nonzero(results[seq]["depth"] > 0)
+            if num_pts < 50:
+                raise IndexError(f"Too few points in depth map ({num_pts})")
+            
+            for key in results[seq].get("image_fields", ["image"]):
+                results[seq][key] = results[seq][key].to(torch.float32) / 255
 
         num_pts = torch.count_nonzero(results["depth"] > self.min_depth)
         if num_pts < 50:

@@ -2,6 +2,7 @@ import os
 from abc import abstractmethod
 from math import ceil, log
 from typing import Any, Dict, Tuple
+from copy import deepcopy
 
 import numpy as np
 import torch
@@ -29,6 +30,7 @@ class BaseDataset(Dataset):
         augmentations_db: Dict[str, Any],
         resize_method: str,
         mini: float,
+        num_copies: int = 1,
         **kwargs,
     ) -> None:
         super().__init__()
@@ -41,6 +43,7 @@ class BaseDataset(Dataset):
         self.resize_method = resize_method
         self.mini = mini
         self.num_frames = 1
+        self.num_copies = num_copies
         self.metrics_store = {}
         self.metrics_count = {}
 
@@ -164,6 +167,8 @@ class BaseDataset(Dataset):
         new_preds = {}
         new_gts = inputs["points"]
         new_masks = inputs["depth_mask"].bool()
+        if "points_mask" in inputs:
+            new_masks = inputs["points_mask"].bool()
         for key, val in preds.items():
             if "points" in key:
                 new_preds[key] = val
@@ -262,6 +267,12 @@ class BaseDataset(Dataset):
         self.metrics_count = {}
         return metric_vals
 
+    def replicate(self, results):
+        for i in range(1, self.num_copies):
+            results[(0, i)] = {k: deepcopy(v) for k, v in results[(0, 0)].items()}
+            results["sequence_fields"].append((0, i))
+        return results
+    
     def log_load_dataset(self):
         if is_main_process():
             info = f"Loaded {self.__class__.__name__} with {len(self)} images."
@@ -273,12 +284,14 @@ class BaseDataset(Dataset):
         results["mask_fields"] = results.get("mask_fields", set())
         results["sequence_fields"] = results.get("sequence_fields", set())
         results["camera_fields"] = results.get("camera_fields", set())
-        results["dataset_name"] = [self.__class__.__name__] * self.num_frames
-        results["depth_scale"] = [self.depth_scale] * self.num_frames
-        results["si"] = [False] * self.num_frames
-        results["synthetic"] = [False] * self.num_frames
-        results["valid_camera"] = [True] * self.num_frames
-        results["valid_pose"] = [True] * self.num_frames
+        results["dataset_name"] = [self.__class__.__name__] * self.num_frames * self.num_copies
+        results["depth_scale"] = [self.depth_scale] * self.num_frames * self.num_copies
+        results["si"] = [False] * self.num_frames * self.num_copies
+        results["dense"] = [False] * self.num_frames * self.num_copies
+        results["synthetic"] = [False] * self.num_frames * self.num_copies
+        results["quality"] = [0] * self.num_frames * self.num_copies
+        results["valid_camera"] = [True] * self.num_frames * self.num_copies
+        results["valid_pose"] = [True] * self.num_frames * self.num_copies
         return results
 
     def eval_mask(self, valid_mask):

@@ -54,11 +54,14 @@ class ADT(SequenceDataset):
             xv, yv = torch.meshgrid(x, y, indexing="xy")
             distance_from_center = torch.sqrt(xv**2 + yv**2).reshape(1, 1, H, W)
             results[seq]["validity_mask"] = distance_from_center < (H / 2) + 20
+            results[seq]["depth_mask"] = results[seq]["validity_mask"].clone()
+            results[seq]["mask_fields"].add("depth_mask")
+            results[seq]["mask_fields"].add("validity_mask")
         return super().preprocess(results)
 
     def pre_pipeline(self, results):
         results = super().pre_pipeline(results)
-        results["dense"] = [True] * self.num_frames
-        results["synthetic"] = [True] * self.num_frames
-        results["quality"] = [0] * self.num_frames
+        results["dense"] = [True] * self.num_frames * self.num_copies
+        results["synthetic"] = [True] * self.num_frames * self.num_copies
+        results["quality"] = [0] * self.num_frames * self.num_copies
         return results

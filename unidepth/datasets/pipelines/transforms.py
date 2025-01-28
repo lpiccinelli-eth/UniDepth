@@ -1144,9 +1144,9 @@ class ContextCrop:
         self.shape_mult = shape_constraints["shape_mult"]
         self.sample = shape_constraints["sample"]
         self.ratio_bounds = shape_constraints["ratio_bounds"]
-        self.pixels = (
-            shape_constraints["pixels_max"] + shape_constraints["pixels_min"]
-        ) / 2
+        pixels_min = shape_constraints["pixels_min"] / (self.shape_mult * self.shape_mult)
+        pixels_max = shape_constraints["pixels_max"] / (self.shape_mult * self.shape_mult)
+        self.pixels_bounds = (pixels_min, pixels_max)
         self.ctx = None
 
     def _transform_img(self, results, shapes):
@@ -1189,9 +1189,13 @@ class ContextCrop:
         return TF.pad(image_cropped, padding_ltrb)
 
     def test_closest_shape(self, input_ratio):
+        h, w = image_shape
+        input_ratio = w / h
         if self.sample:
+            input_pixels = int(ceil(h / self.shape_mult * w / self.shape_mult))
+            pixels = max(min(input_pixels, self.pixels_bounds[1]), self.pixels_bounds[0])
             ratio = min(max(input_ratio, self.ratio_bounds[0]), self.ratio_bounds[1])
-            h = round((self.pixels / ratio) ** 0.5)
+            h = round((pixels / ratio) ** 0.5)
             w = h * ratio
             self.image_shape[0] = int(h) * self.shape_mult
             self.image_shape[1] = int(w) * self.shape_mult

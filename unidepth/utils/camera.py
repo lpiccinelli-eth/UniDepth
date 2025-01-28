@@ -190,6 +190,9 @@ class Camera:
         if func is torch.stack:
             return Camera._stack_or_cat_cameras(args[0], func, **kwargs)
 
+        if func is torch.flatten:
+            return Camera._stack_or_cat_cameras(args[0], torch.cat, **kwargs)
+
         return super().__torch_function__(func, types, args, kwargs)
 
     @property

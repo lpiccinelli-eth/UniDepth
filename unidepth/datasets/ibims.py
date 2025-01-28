@@ -72,8 +72,8 @@ class IBims(ImageDataset):
 
     def pre_pipeline(self, results):
         results = super().pre_pipeline(results)
-        results["dense"] = [True]
-        results["quality"] = [1]
+        results["dense"] = [True] * self.num_copies
+        results["quality"] = [1] * self.num_copies
         return results
 
 
@@ -97,8 +97,8 @@ class IBims_F(SequenceDataset):
         mini: float,
         num_frames: int = 1,
         benchmark: bool = False,
-        decode_fields: list[str] = ["image", "depth", "points"],
-        inplace_fields: list[str] = ["camera_params"],
+        decode_fields: list[str] = ["image", "depth"],
+        inplace_fields: list[str] = ["camera_params", "cam2w"],
         **kwargs,
     ) -> None:
         super().__init__(
@@ -111,13 +111,13 @@ class IBims_F(SequenceDataset):
             resize_method=resize_method,
             mini=mini,
             num_frames=num_frames,
-            decode_fields=decode_fields,
+            decode_fields=decode_fields if not test_mode else [*decode_fields, "points"],
             inplace_fields=inplace_fields,
             **kwargs,
         )
 
     def pre_pipeline(self, results):
         results = super().pre_pipeline(results)
-        results["dense"] = [True] * self.num_frames
-        results["quality"] = [1] * self.num_frames
+        results["dense"] = [True] * self.num_frames * self.num_copies
+        results["quality"] = [1] * self.num_frames * self.num_copies
         return results

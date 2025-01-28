@@ -1,35 +1,31 @@
-import json
-import os
+from typing import Any
 
-import h5py
-import numpy as np
-import torch
-
-from unidepth.datasets.image_dataset import ImageDataset
-from unidepth.datasets.utils import DatasetFromList
+from unidepth.datasets.sequence_dataset import SequenceDataset 
 
 
-class ScanNet(ImageDataset):
+class ScanNet(SequenceDataset):
     min_depth = 0.005
     max_depth = 10.0
     depth_scale = 1000.0
-    test_split = "scannet_test.txt"
-    train_split = "scannet_train.txt"
-    intrisics_file = "scannet_intrinsics.json"
-    hdf5_paths = ["scannet.hdf5"]
-
+    test_split = "test.txt"
+    train_split = "train.txt"
+    sequences_file = "sequences.json"
+    hdf5_paths = ["ScanNetS.hdf5"]
     def __init__(
         self,
-        image_shape,
-        split_file,
-        test_mode,
-        benchmark=False,
-        augmentations_db={},
-        normalize=True,
-        resize_method="hard",
-        mini=1.0,
+        image_shape: tuple[int, int],
+        split_file: str,
+        test_mode: bool,
+        normalize: bool,
+        augmentations_db: dict[str, Any],
+        resize_method: str,
+        mini: float = 1.0,
+        num_frames: int = 1,
+        benchmark: bool = False,
+        decode_fields: list[str] = ["image", "depth"],
+        inplace_fields: list[str] = ["K", "cam2w"],
         **kwargs,
-    ):
+    ) -> None:
         super().__init__(
             image_shape=image_shape,
             split_file=split_file,
@@ -39,35 +35,14 @@ class ScanNet(ImageDataset):
             augmentations_db=augmentations_db,
             resize_method=resize_method,
             mini=mini,
-            **kwargs,
+            num_frames=num_frames,
+            decode_fields=decode_fields,
+            inplace_fields=inplace_fields,
+            **kwargs
         )
-        self.test_mode = test_mode
-        self.load_dataset()
-
-    def load_dataset(self):
-        h5file = h5py.File(
-            os.path.join(self.data_root, self.hdf5_paths[0]),
-            "r",
-            libver="latest",
-            swmr=True,
-        )
-        txt_file = np.array(h5file[self.split_file])
-        txt_string = txt_file.tostring().decode("ascii")[:-1]  # correct the -1
-        intrinsics = np.array(h5file[self.intrisics_file]).tostring().decode("ascii")
-        intrinsics = json.loads(intrinsics)
-        h5file.close()
-        dataset = []
-        for line in txt_string.split("\n"):
-            image_filename, depth_filename = line.strip().split(" ")
-            intrinsics_val = torch.tensor(intrinsics[image_filename]).squeeze()[:, :3]
-            sample = [image_filename, depth_filename, intrinsics_val]
-            dataset.append(sample)
-
-        self.dataset = DatasetFromList(dataset)
-        self.log_load_dataset()
 
     def pre_pipeline(self, results):
         results = super().pre_pipeline(results)
-        results["dense"] = [True]
-        results["quality"] = [1]
+        results["dense"] = [True] * self.num_frames * self.num_copies
+        results["quality"] = [1] * self.num_frames * self.num_copies
         return results

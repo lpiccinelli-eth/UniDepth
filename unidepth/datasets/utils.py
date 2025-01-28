@@ -14,7 +14,7 @@ from unidepth.utils.distributed import (all_gather, get_local_rank,
 
 
 class ConcatDataset(torch.utils.data.ConcatDataset):
-    def __init__(self, datasets, shape_constraints: dict[str, list[int]] = {}, pairs=1):
+    def __init__(self, datasets, shape_constraints: dict[str, list[int]] = {}):
         super().__init__(datasets)
 
         self.sample = shape_constraints["sample"]
@@ -22,23 +22,25 @@ class ConcatDataset(torch.utils.data.ConcatDataset):
         self.ratio_bounds = shape_constraints["ratio_bounds"]
         self.pixels_max = shape_constraints["pixels_max"]
         self.pixels_min = shape_constraints["pixels_min"]
+
         self.height_min = shape_constraints["height_min"]
         self.width_min = shape_constraints["width_min"]
-        self.pairs = pairs
 
     def sample_shape(self):
         if not self.sample:
             return
         # 1: sample image ratio
         ratio = np.random.uniform(*self.ratio_bounds)
+        pixels_min = self.pixels_min // (self.shape_mult * self.shape_mult)
+        pixels_max = self.pixels_max // (self.shape_mult * self.shape_mult)
         # 2: sample image height or width, if ratio > 1 or < 1
         if ratio > 1:
-            height_min = max(self.height_min, np.sqrt(self.pixels_min / ratio))
-            height = np.random.uniform(height_min, np.sqrt(self.pixels_max / ratio))
+            height_min = max(self.height_min, np.sqrt(pixels_min / ratio))
+            height = np.random.uniform(height_min, np.sqrt(pixels_max / ratio))
             width = height * ratio
         else:
-            width_min = max(self.width_min, np.sqrt(self.pixels_min * ratio))
-            width = np.random.uniform(width_min, np.sqrt(self.pixels_max * ratio))
+            width_min = max(self.width_min, np.sqrt(pixels_min * ratio))
+            width = np.random.uniform(width_min, np.sqrt(pixels_max * ratio))
             height = width / ratio
         # 3: get final shape based on the shape_mult
         shape = [int(height) * self.shape_mult, int(width) * self.shape_mult]
@@ -48,11 +50,7 @@ class ConcatDataset(torch.utils.data.ConcatDataset):
 
     def __getitem__(self, idxs):
         self.sample_shape()
-        return [
-            super(ConcatDataset, self).__getitem__(idx)
-            for idx in idxs
-            for _ in range(self.pairs)
-        ]
+        return [super(ConcatDataset, self).__getitem__(idx)for idx in idxs]
 
 
 def _paddings(image_shape, network_shape):

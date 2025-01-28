@@ -233,8 +233,9 @@ def main_worker(config: Dict[str, Any], args: argparse.Namespace):
             normalize=config["data"].get("normalization", "imagenet"),
             resize_method=resize_method,
             mini=1.0,
+            num_copies=config["data"]["num_copies"],
             num_frames=1,
-            fps_range=[1, 1],
+            fps_range=[1, 30],
         )
         dim = (
             train_datasets[dataset].dataset._addr.numel() * 8
@@ -260,7 +261,6 @@ def main_worker(config: Dict[str, Any], args: argparse.Namespace):
     train_dataset = ConcatDataset(
         [t for t in train_datasets.values()],
         shape_constraints=config["data"]["augmentations"]["shape_constraints"],
-        pairs=config["data"]["pairs"],
     )
 
     if is_main_process():
@@ -275,7 +275,7 @@ def main_worker(config: Dict[str, Any], args: argparse.Namespace):
             augmentations_db=augmentations_db,
             normalize=config["data"].get("normalization", "imagenet"),
             resize_method=resize_method,
-            num_frames=-1,
+            num_frames=1,
             mini=1.0,
         )
 
@@ -388,7 +388,7 @@ def main_worker(config: Dict[str, Any], args: argparse.Namespace):
         if track_pbar:
             pbar = tqdm(total=n_steps - init_steps)
 
-    scaler = torch.cuda.amp.GradScaler(enabled=f16)
+    scaler = torch.amp.GradScaler("cuda", enabled=f16)
     track_losses = {}
     system_memory = dict(psutil.virtual_memory()._asdict())["available"] / 2**30
     cpid_memory = current_process.memory_info()[0] / 2.0**30
@@ -426,8 +426,8 @@ def main_worker(config: Dict[str, Any], args: argparse.Namespace):
                 batch["data"] = {k: v[batch_slice] for k, v in batches["data"].items()}
                 batch["img_metas"] = batches["img_metas"][batch_slice]
 
-                # remove temporal dimension of the dataloder, here is always 1!
-                batch["data"] = {k: v.squeeze(1) for k, v in batch["data"].items()}
+                # remove temporal dimension of the dataloder, here is always 1!!
+                batch["data"] = {k: torch.flatten(v, 0, 1) for k, v in batch["data"].items()}
                 batch["img_metas"] = [
                     {k: v[0] for k, v in meta.items() if isinstance(v, list)}
                     for meta in batch["img_metas"]

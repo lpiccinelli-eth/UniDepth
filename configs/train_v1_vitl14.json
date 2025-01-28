@@ -5,7 +5,7 @@
     },
     "training": {    
     "n_iters": 300000,
-    "batch_size": 32,
+    "batch_size": 4,
     "validation_interval": 1000,
     "nsteps_accumulation_gradient": 1,
     "use_checkpoint": false,
@@ -50,7 +50,7 @@
     "data": {
         "image_shape": [480, 640],
         "normalization": "imagenet",
-        "pairs": 2,
+        "num_copies": 2,
         "num_frames": 1,
         "sampling":{
             "Sintel": 1.0,
@@ -60,7 +60,8 @@
             "ScanNet": 1.0
         },
         "train_datasets": [
-            "ScanNet"
+            "ScanNet",
+            "ADT"
         ],
         "val_datasets": [
             "IBims"
