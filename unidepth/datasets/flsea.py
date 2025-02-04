@@ -4,34 +4,38 @@ import h5py
 import numpy as np
 import torch
 
+from unidepth.datasets.image_dataset import ImageDataset
 from unidepth.datasets.utils import DatasetFromList
-from unidepth.datasets.image_dataset import ImageDataset 
 
 
 class FLSea(ImageDataset):
     CAM_INTRINSIC = {
-        "canyons": torch.tensor([
-            [1175.3913431656817, 0.0, 466.2595428966926],
-            [0.0, 1174.2805075232263, 271.2116633091501],
-            [0.0, 0.0, 1.0],
-        ]),
-        "red_sea": torch.tensor([
-            [1296.666758476217, 0.0, 501.50386149846],
-            [0.0, 1300.831316354508, 276.161712082695],
-            [0.0, 0.0, 1.0]
-        ])
+        "canyons": torch.tensor(
+            [
+                [1175.3913431656817, 0.0, 466.2595428966926],
+                [0.0, 1174.2805075232263, 271.2116633091501],
+                [0.0, 0.0, 1.0],
+            ]
+        ),
+        "red_sea": torch.tensor(
+            [
+                [1296.666758476217, 0.0, 501.50386149846],
+                [0.0, 1300.831316354508, 276.161712082695],
+                [0.0, 0.0, 1.0],
+            ]
+        ),
     }
     min_depth = 0.05
     max_depth = 20.0
     depth_scale = 1000.0
     train_split = "train.txt"
     hdf5_paths = ["FLSea.hdf5"]
+
     def __init__(
         self,
         image_shape,
-        split_file, 
+        split_file,
         test_mode,
-
         crop=None,
         benchmark=False,
         augmentations_db={},
@@ -41,16 +45,15 @@ class FLSea(ImageDataset):
         **kwargs,
     ):
         super().__init__(
-            image_shape=image_shape, 
-            split_file=split_file, 
-            test_mode=test_mode, 
-             
-            benchmark=benchmark, 
-            normalize=normalize, 
-            augmentations_db=augmentations_db, 
-            resize_method=resize_method, 
+            image_shape=image_shape,
+            split_file=split_file,
+            test_mode=test_mode,
+            benchmark=benchmark,
+            normalize=normalize,
+            augmentations_db=augmentations_db,
+            resize_method=resize_method,
             mini=mini,
-            **kwargs
+            **kwargs,
         )
         self.test_mode = test_mode
 
@@ -58,9 +61,14 @@ class FLSea(ImageDataset):
         self.load_dataset()
 
     def load_dataset(self):
-        h5file = h5py.File(os.path.join(self.data_root, self.hdf5_paths[0]), 'r', libver='latest', swmr=True)
+        h5file = h5py.File(
+            os.path.join(self.data_root, self.hdf5_paths[0]),
+            "r",
+            libver="latest",
+            swmr=True,
+        )
         txt_file = np.array(h5file[self.split_file])
-        txt_string = txt_file.tostring().decode("ascii")[:-1] # correct the -1
+        txt_string = txt_file.tostring().decode("ascii")[:-1]  # correct the -1
         h5file.close()
         dataset = []
         for line in txt_string.split("\n"):
@@ -88,5 +96,5 @@ class FLSea(ImageDataset):
     def pre_pipeline(self, results):
         results = super().pre_pipeline(results)
         results["dense"] = [True] * self.num_copies
-        results["quality"] = [2]  * self.num_copies
+        results["quality"] = [2] * self.num_copies
         return results

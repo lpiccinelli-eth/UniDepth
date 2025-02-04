@@ -214,7 +214,7 @@ class UniDepthV1(
         # invariance loss
         flips = torch.tensor(
             [x.get("flip", False) for x in image_metas], device=self.device
-        )
+        ).T
         loss = self.losses["invariance"]
         invariance_losses = loss(
             outputs["cond_features"],

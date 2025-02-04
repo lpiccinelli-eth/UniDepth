@@ -11,6 +11,7 @@ class Argoverse2(SequenceDataset):
     train_split = "train.txt"
     sequences_file = "sequences_clean.json"
     hdf5_paths = [f"AV2_viz.hdf5"]
+
     def __init__(
         self,
         image_shape: tuple[int, int],
@@ -38,9 +39,9 @@ class Argoverse2(SequenceDataset):
             num_frames=num_frames,
             decode_fields=decode_fields,
             inplace_fields=inplace_fields,
-            **kwargs
+            **kwargs,
         )
-        
+
     def pre_pipeline(self, results):
         results = super().pre_pipeline(results)
         results["dense"] = [False] * self.num_frames * self.num_copies

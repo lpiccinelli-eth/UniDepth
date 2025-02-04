@@ -1,12 +1,12 @@
+import json
 import os
-import json 
 
 import h5py
 import numpy as np
 import torch
 
+from unidepth.datasets.image_dataset import ImageDataset
 from unidepth.datasets.utils import DatasetFromList
-from unidepth.datasets.image_dataset import ImageDataset 
 
 
 class BDD(ImageDataset):
@@ -17,10 +17,11 @@ class BDD(ImageDataset):
     train_split = "train_clean.txt"
     intrisics_file = "intrinsics.json"
     hdf5_paths = ["BDD.hdf5"]
+
     def __init__(
         self,
         image_shape,
-        split_file, 
+        split_file,
         test_mode,
         benchmark=False,
         augmentations_db={},
@@ -30,30 +31,37 @@ class BDD(ImageDataset):
         **kwargs,
     ):
         super().__init__(
-            image_shape=image_shape, 
-            split_file=split_file, 
-            test_mode=test_mode, 
-            benchmark=benchmark, 
-            normalize=normalize, 
-            augmentations_db=augmentations_db, 
-            resize_method=resize_method, 
+            image_shape=image_shape,
+            split_file=split_file,
+            test_mode=test_mode,
+            benchmark=benchmark,
+            normalize=normalize,
+            augmentations_db=augmentations_db,
+            resize_method=resize_method,
             mini=mini,
-            **kwargs
+            **kwargs,
         )
         self.test_mode = test_mode
         self.load_dataset()
 
     def load_dataset(self):
-        h5file = h5py.File(os.path.join(self.data_root, self.hdf5_paths[0]), 'r', libver='latest', swmr=True)
+        h5file = h5py.File(
+            os.path.join(self.data_root, self.hdf5_paths[0]),
+            "r",
+            libver="latest",
+            swmr=True,
+        )
         txt_file = np.array(h5file[self.split_file])
-        txt_string = txt_file.tostring().decode("ascii")#[:-1] # correct the -1
+        txt_string = txt_file.tostring().decode("ascii")  # [:-1] # correct the -1
         intrinsics = np.array(h5file[self.intrisics_file]).tostring().decode("ascii")
         intrinsics = json.loads(intrinsics)
 
         dataset = []
         for line in txt_string.split("\n"):
             image_filename, depth_filename = line.strip().split(" ")
-            intrinsics_val = torch.tensor(intrinsics[os.path.join(*image_filename.split("/")[:2])]).squeeze()[:, :3]
+            intrinsics_val = torch.tensor(
+                intrinsics[os.path.join(*image_filename.split("/")[:2])]
+            ).squeeze()[:, :3]
             sample = [image_filename, depth_filename, intrinsics_val]
             dataset.append(sample)
         h5file.close()
@@ -72,4 +80,3 @@ class BDD(ImageDataset):
         results["dense"] = [False] * self.num_copies
         results["quality"] = [2] * self.num_copies
         return results
-    

@@ -11,6 +11,7 @@ class ScanNetpp(SequenceDataset):
     train_split = "train_iphone.txt"
     sequences_file = "sequences_iphone_clean.json"
     hdf5_paths = [f"ScanNetpp_viz.hdf5"]
+
     def __init__(
         self,
         image_shape: tuple[int, int],
@@ -38,7 +39,7 @@ class ScanNetpp(SequenceDataset):
             num_frames=num_frames,
             decode_fields=decode_fields,
             inplace_fields=inplace_fields,
-            **kwargs
+            **kwargs,
         )
 
     def pre_pipeline(self, results):
@@ -46,7 +47,7 @@ class ScanNetpp(SequenceDataset):
         results["dense"] = [True] * self.num_frames * self.num_copies
         results["quality"] = [1] * self.num_frames * self.num_copies
         return results
-    
+
 
 class ScanNetpp_F(SequenceDataset):
     min_depth = 0.001
@@ -57,6 +58,7 @@ class ScanNetpp_F(SequenceDataset):
 
     sequences_file = "sequences_split.json"
     hdf5_paths = [f"ScanNetpp_F.hdf5"]
+
     def __init__(
         self,
         image_shape: tuple[int, int],
@@ -82,9 +84,11 @@ class ScanNetpp_F(SequenceDataset):
             resize_method=resize_method,
             mini=mini,
             num_frames=num_frames,
-            decode_fields=decode_fields if not test_mode else [*decode_fields, "points"],
+            decode_fields=(
+                decode_fields if not test_mode else [*decode_fields, "points"]
+            ),
             inplace_fields=inplace_fields,
-            **kwargs
+            **kwargs,
         )
 
     def pre_pipeline(self, results):

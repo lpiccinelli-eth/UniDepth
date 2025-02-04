@@ -13,6 +13,7 @@ class ASE(SequenceDataset):
     train_split = "train.txt"
     sequences_file = "sequences.json"
     hdf5_paths = [f"ASE.hdf5"]
+
     def __init__(
         self,
         image_shape: tuple[int, int],
@@ -40,7 +41,7 @@ class ASE(SequenceDataset):
             num_frames=num_frames,
             decode_fields=decode_fields,
             inplace_fields=inplace_fields,
-            **kwargs
+            **kwargs,
         )
 
     def preprocess(self, results):
@@ -54,7 +55,7 @@ class ASE(SequenceDataset):
             distance_from_center = torch.sqrt(xv**2 + yv**2).reshape(1, 1, H, W)
             results[seq]["validity_mask"] = distance_from_center < (H / 2) + 20
             results[seq]["mask_fields"].add("validity_mask")
-            
+
         return super().preprocess(results)
 
     def pre_pipeline(self, results):

@@ -1,12 +1,12 @@
+import json
 import os
-import json 
 
 import h5py
 import numpy as np
 import torch
 
+from unidepth.datasets.image_dataset import ImageDataset
 from unidepth.datasets.utils import DatasetFromList
-from unidepth.datasets.image_dataset import ImageDataset 
 
 
 class Cityscape(ImageDataset):
@@ -17,10 +17,11 @@ class Cityscape(ImageDataset):
     train_split = "train.txt"
     intrisics_file = "intrinsics.json"
     hdf5_paths = ["cityscape.hdf5"]
+
     def __init__(
         self,
         image_shape,
-        split_file, 
+        split_file,
         test_mode,
         crop=None,
         benchmark=False,
@@ -31,15 +32,15 @@ class Cityscape(ImageDataset):
         **kwargs,
     ):
         super().__init__(
-            image_shape=image_shape, 
-            split_file=split_file, 
-            test_mode=test_mode, 
-            benchmark=benchmark, 
-            normalize=normalize, 
-            augmentations_db=augmentations_db, 
-            resize_method=resize_method, 
+            image_shape=image_shape,
+            split_file=split_file,
+            test_mode=test_mode,
+            benchmark=benchmark,
+            normalize=normalize,
+            augmentations_db=augmentations_db,
+            resize_method=resize_method,
             mini=mini,
-            **kwargs
+            **kwargs,
         )
         self.test_mode = test_mode
 
@@ -47,9 +48,14 @@ class Cityscape(ImageDataset):
         self.load_dataset()
 
     def load_dataset(self):
-        h5file = h5py.File(os.path.join(self.data_root, self.hdf5_paths[0]), 'r', libver='latest', swmr=True)
+        h5file = h5py.File(
+            os.path.join(self.data_root, self.hdf5_paths[0]),
+            "r",
+            libver="latest",
+            swmr=True,
+        )
         txt_file = np.array(h5file[self.split_file])
-        txt_string = txt_file.tostring().decode("ascii")[:-1] # correct the -1
+        txt_string = txt_file.tostring().decode("ascii")[:-1]  # correct the -1
         intrinsics = np.array(h5file[self.intrisics_file]).tostring().decode("ascii")
         intrinsics = json.loads(intrinsics)
         h5file.close()

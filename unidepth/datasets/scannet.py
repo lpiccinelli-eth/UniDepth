@@ -1,6 +1,6 @@
 from typing import Any
 
-from unidepth.datasets.sequence_dataset import SequenceDataset 
+from unidepth.datasets.sequence_dataset import SequenceDataset
 
 
 class ScanNet(SequenceDataset):
@@ -11,6 +11,7 @@ class ScanNet(SequenceDataset):
     train_split = "train.txt"
     sequences_file = "sequences.json"
     hdf5_paths = ["ScanNetS.hdf5"]
+
     def __init__(
         self,
         image_shape: tuple[int, int],
@@ -38,7 +39,7 @@ class ScanNet(SequenceDataset):
             num_frames=num_frames,
             decode_fields=decode_fields,
             inplace_fields=inplace_fields,
-            **kwargs
+            **kwargs,
         )
 
     def pre_pipeline(self, results):

@@ -5,9 +5,9 @@
     },
     "training": {    
     "n_iters": 300000,
-    "batch_size": 4,
+    "batch_size": 8,
     "validation_interval": 1000,
-    "nsteps_accumulation_gradient": 1,
+    "nsteps_accumulation_gradient": 2,
     "use_checkpoint": false,
     "lr": 1e-4,
     "lr_final": 1e-6,
@@ -53,15 +53,18 @@
         "num_copies": 2,
         "num_frames": 1,
         "sampling":{
-            "Sintel": 1.0,
-            "ADT": 1.0,
-            "KITTI": 1.0,
-            "HM3D": 1.0,
-            "ScanNet": 1.0
+            "Taskonomy": 1.0,
+            "DrivingStereo": 1.0,
+            "Cityscape": 1.0,
+            "Mapillary": 1.0,
+            "ScanNet": 1.0,
+            "Waymo": 1.0,
+            "Argoverse2": 1.0
         },
         "train_datasets": [
             "ScanNet",
-            "ADT"
+            "Waymo",
+            "Argoverse2"
         ],
         "val_datasets": [
             "IBims"
@@ -81,7 +84,7 @@
             "test_context": 1.0,
             "shape_constraints": {
                 "ratio_bounds": [0.66, 2.0],
-                "pixels_max": 500000,
+                "pixels_max": 250000,
                 "pixels_min": 250000,
                 "height_min": 15,
                 "width_min": 15,
@@ -100,7 +103,7 @@
             "dropout": 0.0
         },
         "pixel_encoder": {
-            "name": "dinov2_vits14",
+            "name": "dinov2_vitl14",
             "norm": true,
             "pretrained": "",
             "lr": 1e-5,

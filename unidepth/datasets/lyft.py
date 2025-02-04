@@ -1,12 +1,12 @@
-import os
 import json
+import os
 
 import h5py
 import numpy as np
 import torch
 
-from unidepth.datasets.utils import DatasetFromList
 from unidepth.datasets.image_dataset import ImageDataset
+from unidepth.datasets.utils import DatasetFromList
 
 
 class Lyft(ImageDataset):
@@ -52,19 +52,23 @@ class Lyft(ImageDataset):
             swmr=True,
         )
         txt_file = np.array(h5file[self.split_file])
-        txt_string = txt_file.tostring().decode("ascii")#[:-1]  # correct the -1
+        txt_string = txt_file.tostring().decode("ascii")  # [:-1]  # correct the -1
         intrinsics = np.array(h5file[self.intrisics_file]).tostring().decode("ascii")
         intrinsics = json.loads(intrinsics)
         # with open(os.path.join(os.environ["TMPDIR"], self.split_file), "w") as f:
         #     f.write(txt_string)
         # with open(os.path.join(os.environ["TMPDIR"], self.intrisics_file), "w") as f:
         #     json.dump(intrinsics, f)
-        
+
         dataset = []
         for line in txt_string.split("\n"):
             image_filename, depth_filename = line.strip().split(" ")
             intrinsics_val = torch.tensor(intrinsics[image_filename]).squeeze()[:, :3]
-            sample = [image_filename, depth_filename, intrinsics_val,]
+            sample = [
+                image_filename,
+                depth_filename,
+                intrinsics_val,
+            ]
             dataset.append(sample)
         h5file.close()
 

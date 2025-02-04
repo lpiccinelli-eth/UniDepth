@@ -12,6 +12,7 @@ class WildRGBD(SequenceDataset):
     sequences_file = "sequences.json"
     hdf5_paths = ["WildRGBD.hdf5"]
     default_fps = 30
+
     def __init__(
         self,
         image_shape: tuple[int, int],
@@ -39,9 +40,9 @@ class WildRGBD(SequenceDataset):
             num_frames=num_frames,
             decode_fields=decode_fields,
             inplace_fields=inplace_fields,
-            **kwargs
+            **kwargs,
         )
-        
+
     def pre_pipeline(self, results):
         results = super().pre_pipeline(results)
         results["dense"] = [True] * self.num_frames * self.num_copies

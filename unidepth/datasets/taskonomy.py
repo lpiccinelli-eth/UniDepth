@@ -1,12 +1,12 @@
+import json
 import os
-import json 
 
 import h5py
 import numpy as np
 import torch
 
+from unidepth.datasets.image_dataset import ImageDataset
 from unidepth.datasets.utils import DatasetFromList
-from unidepth.datasets.image_dataset import ImageDataset 
 
 
 class Taskonomy(ImageDataset):
@@ -17,10 +17,11 @@ class Taskonomy(ImageDataset):
     train_split = "train_clean.txt"
     intrisics_file = "intrinsics.json"
     hdf5_paths = ["Taskonomy.hdf5"]
+
     def __init__(
         self,
         image_shape,
-        split_file, 
+        split_file,
         test_mode,
         benchmark=False,
         augmentations_db={},
@@ -30,30 +31,35 @@ class Taskonomy(ImageDataset):
         **kwargs,
     ):
         super().__init__(
-            image_shape=image_shape, 
-            split_file=split_file, 
+            image_shape=image_shape,
+            split_file=split_file,
             test_mode=test_mode,
-            benchmark=benchmark, 
-            normalize=normalize, 
-            augmentations_db=augmentations_db, 
-            resize_method=resize_method, 
+            benchmark=benchmark,
+            normalize=normalize,
+            augmentations_db=augmentations_db,
+            resize_method=resize_method,
             mini=mini,
-            **kwargs
+            **kwargs,
         )
         self.test_mode = test_mode
         self.load_dataset()
 
     def load_dataset(self):
-        h5file = h5py.File(os.path.join(self.data_root, self.hdf5_paths[0]), 'r', libver='latest', swmr=True)
+        h5file = h5py.File(
+            os.path.join(self.data_root, self.hdf5_paths[0]),
+            "r",
+            libver="latest",
+            swmr=True,
+        )
         txt_file = np.array(h5file[self.split_file])
-        txt_string = txt_file.tostring().decode("ascii")#[:-1] # correct the -1
+        txt_string = txt_file.tostring().decode("ascii")  # [:-1] # correct the -1
         intrinsics = np.array(h5file[self.intrisics_file]).tostring().decode("ascii")
         intrinsics = json.loads(intrinsics)
         # with open(os.path.join(os.environ["TMPDIR"], self.split_file), "w") as f:
         #     f.write(txt_string)
         # with open(os.path.join(os.environ["TMPDIR"], self.intrisics_file), "w") as f:
         #     json.dump(intrinsics, f)
-        
+
         dataset = []
         for line in txt_string.split("\n"):
             image_filename, depth_filename, chunk_idx = line.strip().split(" ")
@@ -64,10 +70,10 @@ class Taskonomy(ImageDataset):
 
         if not self.test_mode:
             dataset = self.chunk(dataset, chunk_dim=1, pct=self.mini)
-        
+
         if self.test_mode and not self.benchmark:
             dataset = self.chunk(dataset, chunk_dim=1, pct=0.01)
-        
+
         self.dataset = DatasetFromList(dataset)
         self.log_load_dataset()
 
@@ -77,7 +83,7 @@ class Taskonomy(ImageDataset):
             "depth_filename": 1,
             "K": 2,
         }
-    
+
     def pre_pipeline(self, results):
         results = super().pre_pipeline(results)
         results["dense"] = [True] * self.num_frames * self.num_copies

@@ -1,10 +1,9 @@
-from typing import Any, Optional
-from operator import itemgetter
 import itertools
 import warnings
+from operator import itemgetter
+from typing import Any, Optional
 
 import numpy as np
-
 import torch
 from torch.utils.data import Sampler
 
@@ -49,7 +48,11 @@ def _shuffle_tensor_slice(
     result = np.empty(count, dtype=dtype)
 
     for i in range(count):
-        j = torch.randint(0, i + 1, size=(1,), generator=generator).item() if i > 0 else 0
+        j = (
+            torch.randint(0, i + 1, size=(1,), generator=generator).item()
+            if i > 0
+            else 0
+        )
 
         result[i] = result[j]
         result[j] = tensor[start + i * step].item()
@@ -97,7 +100,9 @@ class ShardedInfiniteSampler(Sampler):
         self._advance = advance
         self._iter_count = 0
         self._shuffle_tensor_slice_fn = (
-            _new_shuffle_tensor_slice if use_new_shuffle_tensor_slice else _shuffle_tensor_slice
+            _new_shuffle_tensor_slice
+            if use_new_shuffle_tensor_slice
+            else _shuffle_tensor_slice
         )
 
     def __iter__(self):
@@ -145,7 +150,8 @@ class ShardedInfiniteSampler(Sampler):
 
 
 class DistributedSamplerNoDuplicate(torch.utils.data.DistributedSampler):
-    """ A distributed sampler that doesn't add duplicates. Arguments are the same as DistributedSampler """
+    """A distributed sampler that doesn't add duplicates. Arguments are the same as DistributedSampler"""
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         if not self.drop_last and len(self.dataset) % self.num_replicas != 0:
@@ -153,7 +159,6 @@ class DistributedSamplerNoDuplicate(torch.utils.data.DistributedSampler):
             if self.rank >= len(self.dataset) % self.num_replicas:
                 self.num_samples -= 1
             self.total_size = len(self.dataset)
-
 
 
 class DatasetFromSampler(torch.utils.data.Dataset):
@@ -235,5 +240,3 @@ class DistributedSamplerWrapper(torch.utils.data.DistributedSampler):
         indexes_of_indexes = super().__iter__()
         subsampler_indexes = self.dataset
         return iter(itemgetter(*indexes_of_indexes)(subsampler_indexes))
-    
-

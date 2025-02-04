@@ -1,20 +1,17 @@
+import json
 import os
-import json 
+from copy import deepcopy
+from typing import Any
 
 import h5py
 import numpy as np
 import torch
 
-from unidepth.datasets.utils import DatasetFromList
-from unidepth.datasets.image_dataset import ImageDataset 
+from unidepth.datasets.image_dataset import ImageDataset
 from unidepth.datasets.pipelines import AnnotationMask, KittiCrop
-from unidepth.utils import identity
-
-from copy import deepcopy
-
-from typing import Any
-
 from unidepth.datasets.sequence_dataset import SequenceDataset
+from unidepth.datasets.utils import DatasetFromList
+from unidepth.utils import identity
 
 
 class TATRMVD(SequenceDataset):
@@ -26,11 +23,11 @@ class TATRMVD(SequenceDataset):
     train_split = "test.txt"
     sequences_file = "sequences.json"
     hdf5_paths = ["tanks_and_temples_rmvd.hdf5"]
-    
+
     def __init__(
         self,
         image_shape,
-        split_file, 
+        split_file,
         test_mode,
         crop=None,
         augmentations_db={},
@@ -44,18 +41,18 @@ class TATRMVD(SequenceDataset):
         **kwargs,
     ):
         super().__init__(
-            image_shape=image_shape, 
-            split_file=split_file, 
-            test_mode=test_mode, 
-            benchmark=benchmark, 
-            normalize=normalize, 
-            augmentations_db=augmentations_db, 
-            resize_method=resize_method, 
+            image_shape=image_shape,
+            split_file=split_file,
+            test_mode=test_mode,
+            benchmark=benchmark,
+            normalize=normalize,
+            augmentations_db=augmentations_db,
+            resize_method=resize_method,
             mini=mini,
             num_frames=num_frames,
             decode_fields=decode_fields,
             inplace_fields=inplace_fields,
-            **kwargs
+            **kwargs,
         )
 
     def pre_pipeline(self, results):

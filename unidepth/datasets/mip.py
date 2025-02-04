@@ -40,7 +40,7 @@ class MIP(SequenceDataset):
             num_frames=num_frames,
             decode_fields=decode_fields,
             inplace_fields=inplace_fields,
-            **kwargs
+            **kwargs,
         )
 
     def pre_pipeline(self, results):

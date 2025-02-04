@@ -1144,8 +1144,12 @@ class ContextCrop:
         self.shape_mult = shape_constraints["shape_mult"]
         self.sample = shape_constraints["sample"]
         self.ratio_bounds = shape_constraints["ratio_bounds"]
-        pixels_min = shape_constraints["pixels_min"] / (self.shape_mult * self.shape_mult)
-        pixels_max = shape_constraints["pixels_max"] / (self.shape_mult * self.shape_mult)
+        pixels_min = shape_constraints["pixels_min"] / (
+            self.shape_mult * self.shape_mult
+        )
+        pixels_max = shape_constraints["pixels_max"] / (
+            self.shape_mult * self.shape_mult
+        )
         self.pixels_bounds = (pixels_min, pixels_max)
         self.ctx = None
 
@@ -1188,12 +1192,14 @@ class ContextCrop:
         image_cropped = img[..., max(top, 0) : bottom, max(left, 0) : right]
         return TF.pad(image_cropped, padding_ltrb)
 
-    def test_closest_shape(self, input_ratio):
+    def test_closest_shape(self, image_shape):
         h, w = image_shape
         input_ratio = w / h
         if self.sample:
             input_pixels = int(ceil(h / self.shape_mult * w / self.shape_mult))
-            pixels = max(min(input_pixels, self.pixels_bounds[1]), self.pixels_bounds[0])
+            pixels = max(
+                min(input_pixels, self.pixels_bounds[1]), self.pixels_bounds[0]
+            )
             ratio = min(max(input_ratio, self.ratio_bounds[0]), self.ratio_bounds[1])
             h = round((pixels / ratio) ** 0.5)
             w = h * ratio
@@ -1204,7 +1210,7 @@ class ContextCrop:
         h, w = image_shape
         input_ratio = w / h
         if self.keep_original:
-            self.test_closest_shape(input_ratio)
+            self.test_closest_shape(image_shape)
             ctx = 1.0
         elif ctx is None:
             ctx = float(
@@ -1240,8 +1246,6 @@ class ContextCrop:
     def __call__(self, results):
         h, w = results["image"].shape[-2:]
         results["image_ori_shape"] = (h, w)
-        results["camera_fields"].add("camera_original")
-        results["camera_original"] = deepcopy(results["camera"])
 
         results.get("mask_fields", set()).add("validity_mask")
         if "validity_mask" not in results:
@@ -1254,6 +1258,8 @@ class ContextCrop:
         n_iter = 1 if self.keep_original or not self.sample else 100
 
         min_valid_area = 0.5
+        results["camera_fields"].add("camera_original")
+        results["camera_original"] = results["camera"].clone()
         max_hfov, max_vfov = results["camera"].max_fov[0]  # it is a 1-dim list
         ctx = None
         for ii in range(n_iter):
@@ -1289,16 +1295,20 @@ class ContextCrop:
                 / (h + paddings[1] + paddings[3])
                 / (w + paddings[0] + paddings[2])
             )
+
             new_hfov, new_vfov = results["camera_original"].get_new_fov(
                 new_shape=(height, width), original_shape=(h, w)
             )[0]
-            # if valid_area >= min_valid_area or getattr(self, "ctx", None) is not None:
-            # break
+
             if (
                 valid_area >= min_valid_area
                 and new_hfov < max_hfov
                 and new_vfov < max_vfov
             ):
+                results["camera"] = results["camera"].crop(
+                    left, top, right=w - right, bottom=h - bottom
+                )
+                results["camera"] = results["camera"].resize(x_zoom)
                 break
             ctx = (
                 ctx * 0.96
@@ -1311,10 +1321,6 @@ class ContextCrop:
         results["paddings"] = paddings  # left ,top ,right, bottom
         results["image_rescale"] = x_zoom
         results["scale_factor"] = results.get("scale_factor", 1.0) * x_zoom
-        results["camera"] = results["camera"].crop(
-            left, top, right=w - right, bottom=h - bottom
-        )
-        results["camera"] = results["camera"].resize(x_zoom)
 
         shapes = dict(height=height, width=width, top=top, left=left)
         self._transform_img(results, shapes)

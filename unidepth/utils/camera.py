@@ -5,7 +5,7 @@ import torch
 import torch.nn.functional as F
 
 from .coordinate import coords_grid
-from .misc import squeeze_list
+from .misc import recursive_to, squeeze_list
 
 
 def invert_pinhole(K):
@@ -161,6 +161,8 @@ class Camera:
         for camera in cameras:
             if isinstance(camera, BatchCamera):
                 flattened_cameras.extend(BatchCamera.flatten_cameras(camera.cameras))
+            elif isinstance(camera, list):
+                flattened_cameras.extend(camera)
             else:
                 flattened_cameras.append(camera)
         return flattened_cameras
@@ -897,9 +899,9 @@ class BatchCamera(Camera):
 
     def to(self, device, non_blocking=False):
         self = super().to(device, non_blocking=non_blocking)
-        self.cameras = [
-            camera.to(device, non_blocking=non_blocking) for camera in self.cameras
-        ]
+        self.cameras = recursive_to(
+            self.cameras, device, non_blocking=non_blocking, cls=Camera
+        )
         return self
 
     def reshape(self, *shape):

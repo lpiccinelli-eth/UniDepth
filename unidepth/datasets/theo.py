@@ -42,7 +42,7 @@ class Theo(SequenceDataset):
             num_frames=num_frames,
             decode_fields=decode_fields,
             inplace_fields=inplace_fields,
-            **kwargs
+            **kwargs,
         )
 
     def preprocess(self, results):
@@ -50,13 +50,14 @@ class Theo(SequenceDataset):
         for i, seq in enumerate(results["sequence_fields"]):
             # Create a mask where the distance from the center is less than H/2
             H, W = results[seq]["image"].shape[-2:]
-            x = torch.linspace(- (W - 1) / 2, (W - 1) / 2, W)
-            y = torch.linspace(- (H - 1) / 2, (H - 1) / 2, H)
+            x = torch.linspace(-(W - 1) / 2, (W - 1) / 2, W)
+            y = torch.linspace(-(H - 1) / 2, (H - 1) / 2, H)
             xv, yv = torch.meshgrid(x, y, indexing="xy")
             distance_from_center = torch.sqrt(xv**2 + yv**2).reshape(1, 1, H, W)
-            results[seq]["validity_mask"] = distance_from_center < (H - 1)  / 2
+            results[seq]["validity_mask"] = distance_from_center < (H - 1) / 2
 
         return super().preprocess(results)
+
     def pre_pipeline(self, results):
         results = super().pre_pipeline(results)
         results["dense"] = [True] * self.num_frames * self.num_copies

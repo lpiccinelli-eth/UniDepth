@@ -50,7 +50,7 @@ class ConcatDataset(torch.utils.data.ConcatDataset):
 
     def __getitem__(self, idxs):
         self.sample_shape()
-        return [super(ConcatDataset, self).__getitem__(idx)for idx in idxs]
+        return [super(ConcatDataset, self).__getitem__(idx) for idx in idxs]
 
 
 def _paddings(image_shape, network_shape):
@@ -88,10 +88,17 @@ def collate_fn(in_data: List[List[Dict[str, Any]]], is_batched: bool = True):
                 v["depth_paddings"] = padding
                 img_metas.append(v)
 
-    return {
-        "data": {k: torch.stack(v) for k, v in out_data.items()},
+    output_dict = {
+        "data": {k: torch.stack(v, dim=0) for k, v in out_data.items()},
         "img_metas": img_metas,
     }
+    # camera are always flattened and the stack/cat so if list of B times (T, 3, 3) cameras
+    # it goes to (B * T, 3, 3), to be consistent with the image shape -> reshape
+    if "camera" in output_dict["data"]:
+        output_dict["data"]["camera"] = output_dict["data"]["camera"].reshape(
+            *output_dict["data"]["image"].shape[:2]
+        )
+    return output_dict
 
 
 def local_scatter(array: list[Any]):

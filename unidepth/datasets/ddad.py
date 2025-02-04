@@ -1,12 +1,12 @@
+import json
 import os
-import json 
 
 import h5py
 import numpy as np
 import torch
 
+from unidepth.datasets.image_dataset import ImageDataset
 from unidepth.datasets.utils import DatasetFromList
-from unidepth.datasets.image_dataset import ImageDataset 
 
 
 class DDAD(ImageDataset):
@@ -17,10 +17,11 @@ class DDAD(ImageDataset):
     train_split = "train.txt"
     intrisics_file = "intrinsics.json"
     hdf5_paths = [f"ddad/ddad_{i}.hdf5" for i in range(8)]
+
     def __init__(
         self,
         image_shape,
-        split_file, 
+        split_file,
         test_mode,
         benchmark=False,
         augmentations_db={},
@@ -30,21 +31,26 @@ class DDAD(ImageDataset):
         **kwargs,
     ):
         super().__init__(
-            image_shape=image_shape, 
-            split_file=split_file, 
-            test_mode=test_mode, 
-            benchmark=benchmark, 
-            normalize=normalize, 
-            augmentations_db=augmentations_db, 
-            resize_method=resize_method, 
+            image_shape=image_shape,
+            split_file=split_file,
+            test_mode=test_mode,
+            benchmark=benchmark,
+            normalize=normalize,
+            augmentations_db=augmentations_db,
+            resize_method=resize_method,
             mini=mini,
-            **kwargs
+            **kwargs,
         )
         self.test_mode = test_mode
         self.load_dataset()
 
     def load_dataset(self):
-        h5file = h5py.File(os.path.join(self.data_root, self.hdf5_paths[0]), 'r', libver='latest', swmr=True)
+        h5file = h5py.File(
+            os.path.join(self.data_root, self.hdf5_paths[0]),
+            "r",
+            libver="latest",
+            swmr=True,
+        )
         txt_file = np.array(h5file[self.split_file])
         txt_string = txt_file.tostring().decode("ascii").strip("\n")
         intrinsics = np.array(h5file[self.intrisics_file]).tostring().decode("ascii")
@@ -54,7 +60,7 @@ class DDAD(ImageDataset):
         for line in txt_string.split("\n"):
             image_filename, depth_filename, chunk_idx = line.strip().split(" ")
             intrinsics_val = torch.tensor(intrinsics[image_filename]).squeeze()[:, :3]
-            sample = [image_filename,  depth_filename, intrinsics_val, chunk_idx]
+            sample = [image_filename, depth_filename, intrinsics_val, chunk_idx]
             dataset.append(sample)
 
         if not self.test_mode:
@@ -70,7 +76,7 @@ class DDAD(ImageDataset):
             "K": 2,
             "chunk_idx": 3,
         }
-    
+
     def pre_pipeline(self, results):
         results = super().pre_pipeline(results)
         results["dense"] = [False] * self.num_copies

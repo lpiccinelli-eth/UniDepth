@@ -2,8 +2,8 @@ from typing import Any
 
 import torch
 
+from unidepth.datasets.pipelines import Compose, PanoCrop, PanoRoll
 from unidepth.datasets.sequence_dataset import SequenceDataset
-from unidepth.datasets.pipelines import PanoCrop, PanoRoll, Compose
 
 
 class _2D3DS(SequenceDataset):
@@ -14,6 +14,7 @@ class _2D3DS(SequenceDataset):
     train_split = "train.txt"
     sequences_file = "sequences.json"
     hdf5_paths = [f"2D3DS.hdf5"]
+
     def __init__(
         self,
         image_shape: tuple[int, int],
@@ -41,15 +42,19 @@ class _2D3DS(SequenceDataset):
             num_frames=num_frames,
             decode_fields=decode_fields,
             inplace_fields=inplace_fields,
-            **kwargs
+            **kwargs,
         )
-        self.resizer = Compose([PanoCrop(), PanoRoll(test_mode=test_mode), self.resizer])
+        self.resizer = Compose(
+            [PanoCrop(), PanoRoll(test_mode=test_mode), self.resizer]
+        )
 
     def preprocess(self, results):
         self.resizer.ctx = None
         if self.test_mode:
             for i, seq in enumerate(results["sequence_fields"]):
-                results[seq]["points"] = results[seq]["camera"].reconstruct(results[seq]["depth"])
+                results[seq]["points"] = results[seq]["camera"].reconstruct(
+                    results[seq]["depth"]
+                )
                 results[seq]["depth"] = results[seq]["points"][:, -1:]
                 results[seq]["gt_fields"].add("points")
         return super().preprocess(results)

@@ -50,7 +50,14 @@ class ImageDataset(BaseDataset):
         sample = self.dataset[idx] if sample is None else sample
         mapper = self.mapper if mapper is None else mapper
 
-        results = {}
+        results = {
+            (0, 0): dict(
+                gt_fields=set(),
+                image_fields=set(),
+                mask_fields=set(),
+                camera_fields=set(),
+            )
+        }
         results = self.pre_pipeline(results)
         results["sequence_fields"] = [(0, 0)]
 
@@ -123,21 +130,21 @@ class ImageDataset(BaseDataset):
     def preprocess(self, results):
         results = self.replicate(results)
         for i, seq in enumerate(results["sequence_fields"]):
+            print(self.__class__.__name__, i, seq, results[seq].keys())
             self.resizer.ctx = None
             results[seq] = self.resizer(results[seq])
             num_pts = torch.count_nonzero(results[seq]["depth"] > 0)
             if num_pts < 50:
                 raise IndexError(f"Too few points in depth map ({num_pts})")
-            
+
             for key in results[seq].get("image_fields", ["image"]):
                 results[seq][key] = results[seq][key].to(torch.float32) / 255
 
-        num_pts = torch.count_nonzero(results["depth"] > self.min_depth)
-        if num_pts < 50:
-            raise IndexError(f"Too few points in depth map ({num_pts})")
-
-        for key in results.get("image_fields", ["image"]):
-            results[key] = results[key].to(torch.float32) / 255
+        # update fields common in sequence
+        for key in ["image_fields", "gt_fields", "mask_fields", "camera_fields"]:
+            if key in results[(0, 0)]:
+                results[key] = results[(0, 0)][key]
+        results = self.pack_batch(results)
         return results
 
     def postprocess(self, results):

@@ -1,8 +1,8 @@
 import os
 from abc import abstractmethod
+from copy import deepcopy
 from math import ceil, log
 from typing import Any, Dict, Tuple
-from copy import deepcopy
 
 import numpy as np
 import torch
@@ -96,6 +96,9 @@ class BaseDataset(Dataset):
         return len(self.dataset)
 
     def pack_batch(self, results):
+        results["paddings"] = [
+            results[x]["paddings"][0] for x in results["sequence_fields"]
+        ]
         for fields_name in [
             "image_fields",
             "gt_fields",
@@ -272,7 +275,7 @@ class BaseDataset(Dataset):
             results[(0, i)] = {k: deepcopy(v) for k, v in results[(0, 0)].items()}
             results["sequence_fields"].append((0, i))
         return results
-    
+
     def log_load_dataset(self):
         if is_main_process():
             info = f"Loaded {self.__class__.__name__} with {len(self)} images."
@@ -284,7 +287,9 @@ class BaseDataset(Dataset):
         results["mask_fields"] = results.get("mask_fields", set())
         results["sequence_fields"] = results.get("sequence_fields", set())
         results["camera_fields"] = results.get("camera_fields", set())
-        results["dataset_name"] = [self.__class__.__name__] * self.num_frames * self.num_copies
+        results["dataset_name"] = (
+            [self.__class__.__name__] * self.num_frames * self.num_copies
+        )
         results["depth_scale"] = [self.depth_scale] * self.num_frames * self.num_copies
         results["si"] = [False] * self.num_frames * self.num_copies
         results["dense"] = [False] * self.num_frames * self.num_copies
@@ -296,6 +301,14 @@ class BaseDataset(Dataset):
 
     def eval_mask(self, valid_mask):
         return valid_mask
+
+    def chunk(self, dataset, chunk_dim=1, pct=1.0):
+        subsampled_datasets = [
+            x
+            for i in range(0, len(dataset), int(1 / pct * chunk_dim))
+            for x in dataset[i : i + chunk_dim]
+        ]
+        return subsampled_datasets
 
     @abstractmethod
     def preprocess(self, results):

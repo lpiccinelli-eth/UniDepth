@@ -1,10 +1,10 @@
 import os
-import h5py
 
+import h5py
 import numpy as np
 
+from unidepth.datasets.image_dataset import ImageDataset
 from unidepth.datasets.utils import DatasetFromList
-from unidepth.datasets.image_dataset import ImageDataset 
 
 
 class MegaDepth(ImageDataset):
@@ -14,10 +14,11 @@ class MegaDepth(ImageDataset):
     test_split = "test.txt"
     train_split = "train.txt"
     hdf5_paths = ["MegaDepth.hdf5"]
+
     def __init__(
         self,
         image_shape,
-        split_file, 
+        split_file,
         test_mode,
         benchmark=False,
         augmentations_db={},
@@ -27,29 +28,37 @@ class MegaDepth(ImageDataset):
         **kwargs,
     ):
         super().__init__(
-            image_shape=image_shape, 
-            split_file=split_file, 
-            test_mode=test_mode, 
-            benchmark=benchmark, 
-            normalize=normalize, 
-            augmentations_db=augmentations_db, 
-            resize_method=resize_method, 
+            image_shape=image_shape,
+            split_file=split_file,
+            test_mode=test_mode,
+            benchmark=benchmark,
+            normalize=normalize,
+            augmentations_db=augmentations_db,
+            resize_method=resize_method,
             mini=mini,
-            **kwargs
+            **kwargs,
         )
         self.test_mode = test_mode
         self.load_dataset()
 
     def load_dataset(self):
-        h5file = h5py.File(os.path.join(self.data_root, self.hdf5_paths[0]), 'r', libver='latest', swmr=True)
+        h5file = h5py.File(
+            os.path.join(self.data_root, self.hdf5_paths[0]),
+            "r",
+            libver="latest",
+            swmr=True,
+        )
         txt_file = np.array(h5file[self.split_file])
-        txt_string = txt_file.tostring().decode("ascii")#[:-1] # correct the -1
+        txt_string = txt_file.tostring().decode("ascii")  # [:-1] # correct the -1
         # with open(os.path.join(os.environ["TMPDIR"], self.split_file), "w") as f:
         #     f.write(txt_string)
         dataset = []
         for line in txt_string.split("\n"):
             image_filename, depth_filename = line.strip().split(" ")
-            sample = [image_filename, depth_filename,]
+            sample = [
+                image_filename,
+                depth_filename,
+            ]
             dataset.append(sample)
         h5file.close()
         if not self.test_mode:

@@ -4,17 +4,19 @@ import h5py
 import numpy as np
 import torch
 
+from unidepth.datasets.image_dataset import ImageDataset
 from unidepth.datasets.utils import DatasetFromList
-from unidepth.datasets.image_dataset import ImageDataset 
 
 
 class DENSE(ImageDataset):
-    CAM_INTRINSIC = {"ALL": 
-        torch.tensor([
-            [1177.8614,   0.0,           474.319027],
-            [0.0,         1177.8614,     224.275919],
-            [0.0,         0.0,           1.0]
-        ])
+    CAM_INTRINSIC = {
+        "ALL": torch.tensor(
+            [
+                [1177.8614, 0.0, 474.319027],
+                [0.0, 1177.8614, 224.275919],
+                [0.0, 0.0, 1.0],
+            ]
+        )
     }
     min_depth = 0.05
     max_depth = 80.0
@@ -22,10 +24,11 @@ class DENSE(ImageDataset):
     test_split = "train.txt"
     train_split = "train.txt"
     hdf5_paths = ["DENSE.hdf5"]
+
     def __init__(
         self,
         image_shape,
-        split_file, 
+        split_file,
         test_mode,
         benchmark=False,
         augmentations_db={},
@@ -35,15 +38,15 @@ class DENSE(ImageDataset):
         **kwargs,
     ):
         super().__init__(
-            image_shape=image_shape, 
-            split_file=split_file, 
-            test_mode=test_mode, 
-            benchmark=benchmark, 
-            normalize=normalize, 
-            augmentations_db=augmentations_db, 
-            resize_method=resize_method, 
+            image_shape=image_shape,
+            split_file=split_file,
+            test_mode=test_mode,
+            benchmark=benchmark,
+            normalize=normalize,
+            augmentations_db=augmentations_db,
+            resize_method=resize_method,
             mini=mini,
-            **kwargs
+            **kwargs,
         )
         self.test_mode = test_mode
 
@@ -51,13 +54,18 @@ class DENSE(ImageDataset):
         self.load_dataset()
 
     def load_dataset(self):
-        h5file = h5py.File(os.path.join(self.data_root, self.hdf5_paths[0]), 'r', libver='latest', swmr=True)
+        h5file = h5py.File(
+            os.path.join(self.data_root, self.hdf5_paths[0]),
+            "r",
+            libver="latest",
+            swmr=True,
+        )
         txt_file = np.array(h5file[self.split_file])
-        txt_string = txt_file.tostring().decode("ascii")[:-1] # correct the -1
+        txt_string = txt_file.tostring().decode("ascii")[:-1]  # correct the -1
         h5file.close()
         dataset = []
         for line in txt_string.split("\n"):
-            image_filename, depth_filename= line.strip().split(" ")
+            image_filename, depth_filename = line.strip().split(" ")
             sample = [image_filename, depth_filename]
             dataset.append(sample)
 
@@ -75,7 +83,7 @@ class DENSE(ImageDataset):
             "image_filename": 0,
             "depth_filename": 1,
         }
-    
+
     def pre_pipeline(self, results):
         results = super().pre_pipeline(results)
         results["dense"] = [False] * self.num_copies

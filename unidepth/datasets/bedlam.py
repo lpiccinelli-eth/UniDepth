@@ -11,6 +11,7 @@ class BEDLAM(SequenceDataset):
     train_split = "val.txt"
     sequences_file = "sequences.json"
     hdf5_paths = ["BEDLAM.hdf5"]
+
     def __init__(
         self,
         image_shape: tuple[int, int],
@@ -38,7 +39,7 @@ class BEDLAM(SequenceDataset):
             num_frames=num_frames,
             decode_fields=decode_fields,
             inplace_fields=inplace_fields,
-            **kwargs
+            **kwargs,
         )
 
     def pre_pipeline(self, results):

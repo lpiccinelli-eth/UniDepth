@@ -13,6 +13,7 @@ class KITTI360(SequenceDataset):
     test_split = "val_split.txt"
     sequences_file = "sequences_split.json"
     hdf5_paths = [f"KITTI360.hdf5"]
+
     def __init__(
         self,
         image_shape: tuple[int, int],
@@ -38,9 +39,11 @@ class KITTI360(SequenceDataset):
             resize_method=resize_method,
             mini=mini,
             num_frames=num_frames,
-            decode_fields=decode_fields if not test_mode else [*decode_fields, "points"],
+            decode_fields=(
+                decode_fields if not test_mode else [*decode_fields, "points"]
+            ),
             inplace_fields=inplace_fields,
-            **kwargs
+            **kwargs,
         )
 
     def preprocess(self, results):
@@ -54,7 +57,7 @@ class KITTI360(SequenceDataset):
             distance_from_center = torch.sqrt(xv**2 + yv**2).reshape(1, 1, H, W)
             results[seq]["validity_mask"] = distance_from_center < (H / 2)
         return super().preprocess(results)
-    
+
     def pre_pipeline(self, results):
         results = super().pre_pipeline(results)
         results["dense"] = [False] * self.num_frames * self.num_copies

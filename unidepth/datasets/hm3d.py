@@ -11,6 +11,7 @@ class HM3D(SequenceDataset):
     train_split = "full.txt"
     sequences_file = "sequences.json"
     hdf5_paths = [f"HM3D.hdf5"]
+
     def __init__(
         self,
         image_shape: tuple[int, int],
@@ -38,7 +39,7 @@ class HM3D(SequenceDataset):
             num_frames=num_frames,
             decode_fields=decode_fields,
             inplace_fields=inplace_fields,
-            **kwargs
+            **kwargs,
         )
 
     def pre_pipeline(self, results):

@@ -2,8 +2,8 @@ from typing import Any
 
 import torch
 
+from unidepth.datasets.pipelines import Compose, PanoCrop, PanoRoll
 from unidepth.datasets.sequence_dataset import SequenceDataset
-from unidepth.datasets.pipelines import PanoCrop, PanoRoll, Compose
 
 
 class Deep360(SequenceDataset):
@@ -14,6 +14,7 @@ class Deep360(SequenceDataset):
     train_split = "train.txt"
     sequences_file = "sequences.json"
     hdf5_paths = [f"Deep360.hdf5"]
+
     def __init__(
         self,
         image_shape: tuple[int, int],
@@ -41,9 +42,11 @@ class Deep360(SequenceDataset):
             num_frames=num_frames,
             decode_fields=decode_fields,
             inplace_fields=inplace_fields,
-            **kwargs
+            **kwargs,
         )
-        self.resizer = Compose([PanoCrop(), PanoRoll(test_mode=test_mode), self.resizer])
+        self.resizer = Compose(
+            [PanoCrop(), PanoRoll(test_mode=test_mode), self.resizer]
+        )
 
     def pre_pipeline(self, results):
         results = super().pre_pipeline(results)

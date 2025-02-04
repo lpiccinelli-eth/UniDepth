@@ -1,7 +1,6 @@
 from typing import Any
 
-from unidepth.datasets.sequence_dataset import SequenceDataset 
-
+from unidepth.datasets.sequence_dataset import SequenceDataset
 
 INVALID_SEQUENCES = [
     "1/000121f2-0",
@@ -99,6 +98,7 @@ class MVImgNet(SequenceDataset):
     sequences_file = "sequences.json"
     hdf5_paths = ["MVImgNet.hdf5"]
     invalid_sequences = INVALID_SEQUENCES
+
     def __init__(
         self,
         image_shape: tuple[int, int],
@@ -126,7 +126,7 @@ class MVImgNet(SequenceDataset):
             num_frames=num_frames,
             decode_fields=decode_fields,
             inplace_fields=inplace_fields,
-            **kwargs
+            **kwargs,
         )
 
     def pre_pipeline(self, results):

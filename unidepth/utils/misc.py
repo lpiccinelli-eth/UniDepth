@@ -435,6 +435,17 @@ def to_cpu(infos):
         return infos
 
 
+def recursive_to(infos, device, non_blocking, cls):
+    if isinstance(infos, dict):
+        return {k: recursive_to(v, device, non_blocking, cls) for k, v in infos.items()}
+    elif isinstance(infos, list):
+        return [recursive_to(v, device, non_blocking, cls) for v in infos]
+    elif isinstance(infos, cls):
+        return infos.to(device, non_blocking=non_blocking)
+    else:
+        return infos
+
+
 def masked_mean(
     data: torch.Tensor,
     mask: torch.Tensor | None = None,

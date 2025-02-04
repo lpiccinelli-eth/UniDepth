@@ -1,12 +1,12 @@
 import os
 
-import h5py 
+import h5py
 import numpy as np
 import torch
 
-from unidepth.datasets.utils import DatasetFromList
-from unidepth.datasets.image_dataset import ImageDataset 
+from unidepth.datasets.image_dataset import ImageDataset
 from unidepth.datasets.sequence_dataset import SequenceDataset
+from unidepth.datasets.utils import DatasetFromList
 
 
 class DiodeIndoor(ImageDataset):
@@ -19,10 +19,11 @@ class DiodeIndoor(ImageDataset):
     test_split = "val.txt"
     train_split = "train.txt"
     hdf5_paths = ["DiodeIndoor.hdf5"]
+
     def __init__(
         self,
         image_shape,
-        split_file, 
+        split_file,
         test_mode,
         crop=None,
         benchmark=False,
@@ -32,14 +33,14 @@ class DiodeIndoor(ImageDataset):
         **kwargs,
     ):
         super().__init__(
-            image_shape=image_shape, 
-            split_file=split_file, 
-            test_mode=test_mode, 
-            benchmark=benchmark, 
-            normalize=normalize, 
-            augmentations_db=augmentations_db, 
+            image_shape=image_shape,
+            split_file=split_file,
+            test_mode=test_mode,
+            benchmark=benchmark,
+            normalize=normalize,
+            augmentations_db=augmentations_db,
             mini=mini,
-            **kwargs
+            **kwargs,
         )
         self.test_mode = test_mode
 
@@ -47,14 +48,22 @@ class DiodeIndoor(ImageDataset):
         self.load_dataset()
 
     def load_dataset(self):
-        h5file = h5py.File(os.path.join(self.data_root, self.hdf5_paths[0]), 'r', libver='latest', swmr=True)
+        h5file = h5py.File(
+            os.path.join(self.data_root, self.hdf5_paths[0]),
+            "r",
+            libver="latest",
+            swmr=True,
+        )
         txt_file = np.array(h5file[self.split_file])
-        txt_string = txt_file.tostring().decode("ascii")[:-1] # correct the -1
+        txt_string = txt_file.tostring().decode("ascii")[:-1]  # correct the -1
         h5file.close()
         dataset = []
         for line in txt_string.split("\n"):
             image_filename, depth_filename = line.strip().split(" ")
-            sample = [image_filename, depth_filename,]
+            sample = [
+                image_filename,
+                depth_filename,
+            ]
             dataset.append(sample)
 
         if not self.test_mode:
@@ -62,7 +71,7 @@ class DiodeIndoor(ImageDataset):
 
         self.dataset = DatasetFromList(dataset)
         self.log_load_dataset()
-        
+
     def get_intrinsics(self, *args, **kwargs):
         return self.CAM_INTRINSIC["ALL"].clone()
 
@@ -71,13 +80,13 @@ class DiodeIndoor(ImageDataset):
             "image_filename": 0,
             "depth_filename": 1,
         }
-    
+
     def pre_pipeline(self, results):
         results = super().pre_pipeline(results)
         results["dense"] = [True] * self.num_copies
         results["quality"] = [1] * self.num_copies
         return results
-    
+
 
 class DiodeIndoor_F(SequenceDataset):
     min_depth = 0.01
@@ -87,6 +96,7 @@ class DiodeIndoor_F(SequenceDataset):
     train_split = "train.txt"
     sequences_file = "sequences.json"
     hdf5_paths = ["DiodeIndoor-F.hdf5"]
+
     def __init__(
         self,
         image_shape: tuple[int, int],
@@ -112,9 +122,11 @@ class DiodeIndoor_F(SequenceDataset):
             resize_method=resize_method,
             mini=mini,
             num_frames=num_frames,
-            decode_fields=decode_fields if not test_mode else [*decode_fields, "points"],
+            decode_fields=(
+                decode_fields if not test_mode else [*decode_fields, "points"]
+            ),
             inplace_fields=inplace_fields,
-            **kwargs
+            **kwargs,
         )
 
     def pre_pipeline(self, results):
@@ -135,12 +147,12 @@ class DiodeOutdoor(ImageDataset):
     test_split = "diode_outdoor_val.txt"
     train_split = "diode_outdoor_train.txt"
     hdf5_paths = ["diode.hdf5"]
+
     def __init__(
         self,
         image_shape,
-        split_file, 
+        split_file,
         test_mode,
-
         depth_scale=256,
         crop=None,
         benchmark=False,
@@ -151,30 +163,34 @@ class DiodeOutdoor(ImageDataset):
         **kwargs,
     ):
         super().__init__(
-            image_shape=image_shape, 
-            split_file=split_file, 
-            test_mode=test_mode, 
-            benchmark=benchmark, 
-            normalize=normalize, 
-            augmentations_db=augmentations_db, 
-            resize_method=resize_method, 
+            image_shape=image_shape,
+            split_file=split_file,
+            test_mode=test_mode,
+            benchmark=benchmark,
+            normalize=normalize,
+            augmentations_db=augmentations_db,
+            resize_method=resize_method,
             mini=mini,
-            **kwargs
+            **kwargs,
         )
         self.test_mode = test_mode
         self.depth_scale = depth_scale
 
-
         self.masker = AnnotationMask(
-            min_value=self.min_depth, 
-            max_value=self.max_depth if test_mode else None, 
-            custom_fn=self.eval_mask if test_mode else lambda x, *args, **kwargs: x
+            min_value=self.min_depth,
+            max_value=self.max_depth if test_mode else None,
+            custom_fn=self.eval_mask if test_mode else lambda x, *args, **kwargs: x,
         )
         # load annotations
         self.load_dataset()
 
     def load_dataset(self):
-        self.h5file = h5py.File(os.path.join(self.data_root, self.hdf5_path), 'r', libver='latest', swmr=True)        
+        self.h5file = h5py.File(
+            os.path.join(self.data_root, self.hdf5_path),
+            "r",
+            libver="latest",
+            swmr=True,
+        )
         txt_file = np.array(self.h5file[self.split_file])
         txt_string = txt_file.tostring().decode("ascii")[:-1]
         dataset = {"depth_filename": [], "image_filename": []}
@@ -189,7 +205,7 @@ class DiodeOutdoor(ImageDataset):
 
         if not self.test_mode and self.mini:
             self.dataset = self.dataset[::2]
-        
+
 
 class Diode(ImageDataset):
     CAM_INTRINSIC = {
@@ -202,13 +218,12 @@ class Diode(ImageDataset):
     test_split = "diode_val.txt"
     train_split = "diode_train.txt"
     hdf5_paths = ["diode.hdf5"]
+
     def __init__(
         self,
         image_shape,
-        split_file, 
+        split_file,
         test_mode,
-
-
         depth_scale=256,
         crop=None,
         benchmark=False,
@@ -218,30 +233,33 @@ class Diode(ImageDataset):
         **kwargs,
     ):
         super().__init__(
-            image_shape=image_shape, 
-            split_file=split_file, 
-            test_mode=test_mode, 
-             
-            benchmark=benchmark, 
-            normalize=normalize, 
-            augmentations_db=augmentations_db, 
+            image_shape=image_shape,
+            split_file=split_file,
+            test_mode=test_mode,
+            benchmark=benchmark,
+            normalize=normalize,
+            augmentations_db=augmentations_db,
             mini=mini,
-            **kwargs
+            **kwargs,
         )
         self.test_mode = test_mode
         self.depth_scale = depth_scale
 
-
         self.masker = AnnotationMask(
-            min_value=self.min_depth, 
-            max_value=self.max_depth if test_mode else None, 
-            custom_fn=self.eval_mask if test_mode else lambda x, *args, **kwargs: x
+            min_value=self.min_depth,
+            max_value=self.max_depth if test_mode else None,
+            custom_fn=self.eval_mask if test_mode else lambda x, *args, **kwargs: x,
         )
         # load annotations
         self.load_dataset()
 
     def load_dataset(self):
-        self.h5file = h5py.File(os.path.join(self.data_root, self.hdf5_path), 'r', libver='latest', swmr=True)
+        self.h5file = h5py.File(
+            os.path.join(self.data_root, self.hdf5_path),
+            "r",
+            libver="latest",
+            swmr=True,
+        )
         txt_file = np.array(self.h5file[self.split_file])
         txt_string = txt_file.tostring().decode("ascii")[:-1]
         dataset = {"depth_filename": [], "image_filename": []}

@@ -1,13 +1,13 @@
+import json
 import os
-import json 
-import h5py
 
+import h5py
 import numpy as np
 import torch
 
-from unidepth.datasets.utils import DatasetFromList
 from unidepth.datasets.image_dataset import ImageDataset
 from unidepth.datasets.sequence_dataset import SequenceDataset
+from unidepth.datasets.utils import DatasetFromList
 
 
 class ETH3D(ImageDataset):
@@ -18,10 +18,11 @@ class ETH3D(ImageDataset):
     train_split = "train.txt"
     intrisics_file = "intrinsics.json"
     hdf5_paths = ["ETH3D.hdf5"]
+
     def __init__(
         self,
         image_shape,
-        split_file, 
+        split_file,
         test_mode,
         benchmark=False,
         augmentations_db={},
@@ -31,23 +32,28 @@ class ETH3D(ImageDataset):
         **kwargs,
     ):
         super().__init__(
-            image_shape=image_shape, 
-            split_file=split_file, 
+            image_shape=image_shape,
+            split_file=split_file,
             test_mode=test_mode,
-            benchmark=benchmark, 
-            normalize=normalize, 
-            augmentations_db=augmentations_db, 
-            resize_method=resize_method, 
+            benchmark=benchmark,
+            normalize=normalize,
+            augmentations_db=augmentations_db,
+            resize_method=resize_method,
             mini=mini,
-            **kwargs
+            **kwargs,
         )
         self.test_mode = test_mode
         self.load_dataset()
 
     def load_dataset(self):
-        h5file = h5py.File(os.path.join(self.data_root, self.hdf5_paths[0]), 'r', libver='latest', swmr=True)
+        h5file = h5py.File(
+            os.path.join(self.data_root, self.hdf5_paths[0]),
+            "r",
+            libver="latest",
+            swmr=True,
+        )
         txt_file = np.array(h5file[self.split_file])
-        txt_string = txt_file.tostring().decode("ascii")[:-1] # correct the -1
+        txt_string = txt_file.tostring().decode("ascii")[:-1]  # correct the -1
         intrinsics = np.array(h5file[self.intrisics_file]).tostring().decode("ascii")
         intrinsics = json.loads(intrinsics)
         h5file.close()
@@ -66,7 +72,7 @@ class ETH3D(ImageDataset):
         results["dense"] = [True] * self.num_frames * self.num_copies
         results["quality"] = [1] * self.num_frames * self.num_copies
         return results
-    
+
 
 class ETH3D_F(SequenceDataset):
     min_depth = 0.05
@@ -76,6 +82,7 @@ class ETH3D_F(SequenceDataset):
     train_split = "train.txt"
     sequences_file = "sequences.json"
     hdf5_paths = ["ETH3D-F.hdf5"]
+
     def __init__(
         self,
         image_shape: tuple[int, int],
@@ -101,9 +108,11 @@ class ETH3D_F(SequenceDataset):
             resize_method=resize_method,
             mini=mini,
             num_frames=num_frames,
-            decode_fields=decode_fields if not test_mode else [*decode_fields, "points"],
+            decode_fields=(
+                decode_fields if not test_mode else [*decode_fields, "points"]
+            ),
             inplace_fields=inplace_fields,
-            **kwargs
+            **kwargs,
         )
 
     def pre_pipeline(self, results):
@@ -111,4 +120,3 @@ class ETH3D_F(SequenceDataset):
         results["dense"] = [True] * self.num_frames * self.num_copies
         results["quality"] = [1] * self.num_frames * self.num_copies
         return results
-    

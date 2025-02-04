@@ -202,7 +202,9 @@ def main_worker(config: Dict[str, Any], args: argparse.Namespace):
         # restore the original batchsize, not acquired by other calls from now on
         if args.distributed:
             config["training"]["batch_size"] = (
-                config["training"]["batch_size"] * args.world_size * config["data"]["num_copies"]
+                config["training"]["batch_size"]
+                * args.world_size
+                * config["data"]["num_copies"]
             )
         wandb.init(
             project="UniDepth",
@@ -305,7 +307,7 @@ def main_worker(config: Dict[str, Any], args: argparse.Namespace):
 
     # DATASET LOADERS
     val_batch_size = 1
-    num_workers = int(os.environ.get("SLURM_CPUS_PER_TASK", 4))
+    num_workers = 0  # int(os.environ.get("SLURM_CPUS_PER_TASK", 4))
     train_loader = DataLoader(
         train_dataset,
         num_workers=num_workers,
@@ -427,9 +429,11 @@ def main_worker(config: Dict[str, Any], args: argparse.Namespace):
                 batch["img_metas"] = batches["img_metas"][batch_slice]
 
                 # remove temporal dimension of the dataloder, here is always 1!!
-                batch["data"] = {k: torch.flatten(v, 0, 1) for k, v in batch["data"].items()}
+                batch["data"] = {
+                    k: torch.flatten(v, 0, 1) for k, v in batch["data"].items()
+                }
                 batch["img_metas"] = [
-                    {k: v[0] for k, v in meta.items() if isinstance(v, list)}
+                    {k: v for k, v in meta.items() if isinstance(v, list)}
                     for meta in batch["img_metas"]
                 ]
 

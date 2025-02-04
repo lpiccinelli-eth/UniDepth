@@ -111,7 +111,9 @@ class IBims_F(SequenceDataset):
             resize_method=resize_method,
             mini=mini,
             num_frames=num_frames,
-            decode_fields=decode_fields if not test_mode else [*decode_fields, "points"],
+            decode_fields=(
+                decode_fields if not test_mode else [*decode_fields, "points"]
+            ),
             inplace_fields=inplace_fields,
             **kwargs,
         )
