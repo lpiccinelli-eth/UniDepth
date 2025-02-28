@@ -403,7 +403,7 @@ class Decoder(nn.Module):
         )
         rays_pred = rearrange(rays_pred, "b c h w -> b (h w) c")
 
-        if self.training:  # legacy
+        if self.training and rays_gt is not None:  # legacy
             prob = -1.0  # 0.8 * (1 - tanh(self.steps / 100000)) + 0.2
             where_use_gt_rays = torch.rand(B, 1, 1, device=device, dtype=dtype) < prob
             where_use_gt_rays = where_use_gt_rays.int()

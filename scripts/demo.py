@@ -4,15 +4,21 @@ from PIL import Image
 
 from unidepth.models import UniDepthV1, UniDepthV2
 from unidepth.utils import colorize, image_grid
+from unidepth.utils.camera import Pinhole
 
 
 def demo(model):
     rgb = np.array(Image.open("assets/demo/rgb.png"))
     rgb_torch = torch.from_numpy(rgb).permute(2, 0, 1)
     intrinsics_torch = torch.from_numpy(np.load("assets/demo/intrinsics.npy"))
+    camera = Pinhole(K=intrinsics_torch.unsqueeze(0))
+    
+    # infer method of V1 uses still the K matrix as input
+    if isinstance(model, UniDepthV1): 
+        camera = camera.K.squeeze(0)
 
     # predict
-    predictions = model.infer(rgb_torch, intrinsics_torch)
+    predictions = model.infer(rgb_torch, camera)
 
     # get GT and pred
     depth_pred = predictions["depth"].squeeze().cpu().numpy()
@@ -37,16 +43,17 @@ def demo(model):
 
 if __name__ == "__main__":
     print("Torch version:", torch.__version__)
-    name = "unidepth-v2-vitl14"
-    # model = UniDepthV1.from_pretrained("lpiccinelli/unidepth-v1-vitl14")
+    type_ = "l"  # available types: s, b, l
+    name = f"unidepth-v2-vit{type_}14"
     model = UniDepthV2.from_pretrained(f"lpiccinelli/{name}")
 
     # set resolution level (only V2)
-    # model.resolution_level = 0
+    # model.resolution_level = 9
 
     # set interpolation mode (only V2)
-    # model.interpolation_mode = "bilinear"
+    model.interpolation_mode = "bilinear"
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model = model.to(device)
+    model = model.to(device).eval()
+
     demo(model)

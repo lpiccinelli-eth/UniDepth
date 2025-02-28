@@ -264,8 +264,8 @@ class UniDepthV2(
         # houskeeping on cpu/cuda and batchify
         if rgb.ndim == 3:
             rgb = rgb.unsqueeze(0)
-            if camera is not None:
-                camera = BatchCamera.from_camera(camera)
+        if camera is not None:
+            camera = BatchCamera.from_camera(camera)
         B, _, H, W = rgb.shape
 
         rgb = rgb.to(self.device)

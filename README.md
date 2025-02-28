@@ -95,7 +95,7 @@ Run UniDepth on the given assets to test your installation (you can check this s
 ```shell
 python ./scripts/demo.py
 ```
-If everything runs correctly, `demo.py` should print: `ARel: 5.13%`.
+If everything runs correctly, `demo.py` should print: `ARel: 7.45%`.
 
 If you encounter `Segmentation Fault` after running the demo, you may need to uninstall torch via pip (`pip uninstall torch`) and install the torch version present in [requirements](requirements.txt) with `conda`.
 
