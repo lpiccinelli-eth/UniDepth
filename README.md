@@ -1,13 +1,27 @@
-[![arXiv](https://img.shields.io/badge/arXiv-2403.18913-blue?logo=arxiv&color=%23B31B1B)](https://arxiv.org/abs/2403.18913)
+[![arXiv](https://img.shields.io/badge/UniDepthV2%20arXiv-2502.20110-blue?logo=arxiv&color=%23B31B1B)](https://arxiv.org/abs/2502.20110)
+[![arXiv](https://img.shields.io/badge/UniDepthV1%20arXiv-2403.18913-blue?logo=arxiv-v1&color=%23B31B1B)](https://arxiv.org/abs/2403.18913)
 [![ProjectPage](https://img.shields.io/badge/Project_Page-UniDepth-blue)](https://lpiccinelli-eth.github.io/pub/unidepth/)
-<!-- [![HuggingFace](https://img.shields.io/badge/%F0%9F%A4%97%20HuggingFace-Cooming%20Soon-yellow)](https://huggingface.co/spaces/lpiccinelli/UniDepth) -->
+
+# UniDepthV2: Universal Monocular Metric Depth Estimation Made Simpler
+
+[![KITTI Benchmark](https://img.shields.io/badge/KITTI%20Benchmark-1st%20(at%20submission%20time)-orange)](https://www.cvlibs.net/datasets/kitti/eval_depth.php?benchmark=depth_prediction)
+[![PWC](https://img.shields.io/endpoint.svg?url=https://paperswithcode.com/badge/unidepthv2-universal-monocular-metric-depth/monocular-depth-estimation-on-nyu-depth-v2)](https://paperswithcode.com/sota/monocular-depth-estimation-on-nyu-depth-v2?p=unidepthv2-universal-monocular-metric-depth)
+[![PWC](https://img.shields.io/endpoint.svg?url=https://paperswithcode.com/badge/unidepthv2-universal-monocular-metric-depth/monocular-depth-estimation-on-kitti-eigen)](https://paperswithcode.com/sota/monocular-depth-estimation-on-kitti-eigen?p=unidepthv2-universal-monocular-metric-depth)
+
+
+![](assets/docs/unidepthv2-banner.png)
+
+> [**UniDepthV2: Universal Monocular Metric Depth Estimation Made Simpler**](https://arxiv.org/abs/2403.18913),  
+> Luigi Piccinelli, Christos Sakaridis, Yung-Hsu Yang, Mattia Segu, Siyuan Li, Wim Abbeloos, Luc Van Gool,  
+> under submission,  
+> *Paper at [arXiv 2502.20110](https://arxiv.org/abs/2502.20110)*  
+
+
+# UniDepth: Universal Monocular Metric Depth Estimation
 
 [![KITTI Benchmark](https://img.shields.io/badge/KITTI%20Benchmark-1st%20(at%20submission%20time)-orange)](https://www.cvlibs.net/datasets/kitti/eval_depth.php?benchmark=depth_prediction)
 [![PWC](https://img.shields.io/endpoint.svg?url=https://paperswithcode.com/badge/unidepth-universal-monocular-metric-depth/monocular-depth-estimation-on-nyu-depth-v2)](https://paperswithcode.com/sota/monocular-depth-estimation-on-nyu-depth-v2?p=unidepth-universal-monocular-metric-depth)
 [![PWC](https://img.shields.io/endpoint.svg?url=https://paperswithcode.com/badge/unidepth-universal-monocular-metric-depth/monocular-depth-estimation-on-kitti-eigen)](https://paperswithcode.com/sota/monocular-depth-estimation-on-kitti-eigen?p=unidepth-universal-monocular-metric-depth)
-
-
-# UniDepth: Universal Monocular Metric Depth Estimation
 
 ![](assets/docs/unidepth-banner.png)
 
@@ -17,13 +31,12 @@
 > *Paper at [arXiv 2403.18913](https://arxiv.org/pdf/2403.18913.pdf)*  
 
 
+
 ## News and ToDo
 
-- [ ] Release UniDepth on PyPI.
-- [ ] Release HuggingFace/Gradio demo.
-- [ ] Solve image corners artifacts (retraining in progress...)
-- [x] `12.06.2024`: Release smaller V2 models.
-- [x] `01.05.2024`: Release UniDepthV2.
+- [ ] HuggingFace/Gradio demo.
+- [x] `28.02.2025`: Release UniDepthV2.
+- [x] `15.10.2024`: Release training code.
 - [x] `02.04.2024`: Release UniDepth as python package.
 - [x] `01.04.2024`: Inference code and V1 models are released.
 - [x] `26.02.2024`: UniDepth is accepted at CVPR 2024! (Highlight :star:)
@@ -82,7 +95,7 @@ Run UniDepth on the given assets to test your installation (you can check this s
 ```shell
 python ./scripts/demo.py
 ```
-If everything runs correctly, `demo.py` should print: `ARel: 5.13%`.
+If everything runs correctly, `demo.py` should print: `ARel: 7.45%`.
 
 If you encounter `Segmentation Fault` after running the demo, you may need to uninstall torch via pip (`pip uninstall torch`) and install the torch version present in [requirements](requirements.txt) with `conda`.
 
@@ -170,7 +183,7 @@ The available models are the following:
     </tr>
     <tr>
         <td>ViT-B</td>
-        <td>unidepth-v1-vitb14 (Coming Soon)</td>
+        <td><a href="https://huggingface.co/lpiccinelli/unidepth-v2-vitb14">unidepth-v2-vits14</a></td>
     </tr>
     <tr>
         <td>ViT-L</td>
@@ -203,30 +216,34 @@ You can look into function `UniDepth` in [hubconf.py](hubconf.py) to see how to 
 ## UniDepthV2
 
 Visit [UniDepthV2 ReadMe](assets/docs/V2_README.md) for a more detailed changelog.
-To summarize the main differences are:  
-- Input shape and ratio flexibility.  
-- Confidence output  
-- Decoder design  
-- Faster inference  
-- ONNX support
+To summarize the main differences are:
+- Improved performance and edge sharpness. (`EdgeGuidedLocalSSI`)
+- Input shape and ratio flexibility. (`self.resolution_level`)
+- Confidence output.
+- Faster inference.
+- ONNX support.
+
+
+## Training
+
+Please [visit the training README](scripts/README.md) for more information.
 
 
 ## Results
 
 ### Metric Depth Estimation
 The performance reported is for UniDepthV1 model and the metrics is d1 (higher is better) on zero-shot evaluation. The common split between SUN-RGBD and NYUv2 is removed from SUN-RGBD validation set for evaluation. 
-*: non zero-shot on NYUv2 and KITTI.
 
 | Model | NYUv2 | SUN-RGBD | ETH3D | Diode (In) | IBims-1 | KITTI | Nuscenes | DDAD | 
 | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: |
-| BTS* | 88.5 | 76.1 | 26.8 | 19.2 | 53.1 | 96.2 | 33.7 | 43.0 |
-| AdaBins* | 90.1 | 77.7 | 24.3 | 17.4 | 55.0 | 96.3 | 33.3 | 37.7 |
-| NeWCRF* | 92.1 | 75.3 | 35.7 | 20.1 | 53.6 | 97.5 | 44.2 | 45.6 | 
-| iDisc* | 93.8 | 83.7 | 35.6 | 23.8 | 48.9 | 97.5 | 39.4 | 28.4 |
-| ZoeDepth* | 95.2 | 86.7 | 35.0 | 36.9 | 58.0 | 96.5 | 28.3 | 27.2 |
+| iDisc | 93.8 | 83.7 | 35.6 | 23.8 | 48.9 | 97.5 | 39.4 | 28.4 |
+| ZoeDepth | 95.2 | 86.7 | 35.0 | 36.9 | 58.0 | 96.5 | 28.3 | 27.2 |
 | Metric3D | 92.6 | 15.4 | 45.6 | 39.2 | 79.7 | 97.5 | 72.3 | - |
-| UniDepth_ConvNext | 97.2| 94.8 | 49.8 | 60.2 | 79.7 | 97.2 | 83.3 | 83.2 |
-| UniDepth_ViT | 98.4 | 96.6 | 32.6 | 77.1 | 23.9 | 98.6 | 86.2 | 86.4 |
+| Metric3Dv2 | 98.9 | 81.2 | 90.0 | - | 68.4 | 98.5 | 84.1 | - |
+| DepthPro | - | 83.1 | 39.7 | - | 82.3 | - | 56.6 | 29.9 |
+| UniDepthV1 | 98.4 | 94.3 | 18.5 | 77.1 | 15.7 | 98.6 | 84.6 | 85.8 |
+| UniDepthV2 | 98.8 | 96.4 | 85.2 | - | 94.5 | 98.9 | 87.0 | 88.2 |
+
 
 
 ## Contributions
@@ -236,7 +253,7 @@ If you find any bug in the code, please report to Luigi Piccinelli (lpiccinelli@
 
 ## Citation
 
-If you find our work useful in your research please consider citing our publication:
+If you find our work useful in your research please consider citing our publications:
 ```bibtex
 @inproceedings{piccinelli2024unidepth,
     title     = {{U}ni{D}epth: Universal Monocular Metric Depth Estimation},
@@ -246,6 +263,17 @@ If you find our work useful in your research please consider citing our publicat
 }
 ```
 
+```bibtex
+@misc{piccinelli2025unidepthv2,
+      title={{U}ni{D}epth{V2}: Universal Monocular Metric Depth Estimation Made Simpler}, 
+      author={Luigi Piccinelli and Christos Sakaridis and Yung-Hsu Yang and Mattia Segu and Siyuan Li and Wim Abbeloos and Luc Van Gool},
+      year={2025},
+      eprint={2502.20110},
+      archivePrefix={arXiv},
+      primaryClass={cs.CV},
+      url={https://arxiv.org/abs/2502.20110}, 
+}
+```
 
 ## License
 

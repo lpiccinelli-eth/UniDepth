@@ -1,0 +1,113 @@
+{
+    "generic": {
+        "seed": 13,
+        "deterministic": true
+    },
+    "training": {    
+    "n_iters": 300000,
+    "batch_size": 8,
+    "validation_interval": 1000,
+    "nsteps_accumulation_gradient": 2,
+    "use_checkpoint": false,
+    "lr": 1e-4,
+    "lr_final": 1e-6,
+    "lr_warmup": 1.0,
+    "cycle_beta": false,
+
+    "wd": 0.1,
+    "wd_final": 0.1,
+    "warmup_iters": 75000,
+    "ld": 1.0,
+
+    "drop_path": 0.0,
+    "ema": true,
+    "f16": true,
+    "clipping": 1.0,
+    "losses": {
+        "depth": {
+            "name": "SILog",
+            "weight": 1.0,
+            "output_fn": "sqrt",
+            "input_fn": "log",
+            "dims": [-2,-1],
+            "integrated": 0.15
+        },
+        "invariance": {
+            "name": "SelfDistill",
+            "weight": 0.1,
+            "output_fn": "sqrt"
+        },
+        "camera": {
+            "name": "Regression",
+            "weight": 0.25,
+            "gamma": 1.0,
+            "alpha": 1.0,
+            "fn": "l2",
+            "output_fn": "sqrt",
+            "input_fn": "linear"
+        }
+    }},
+    "data": {
+        "image_shape": [480, 640],
+        "normalization": "imagenet",
+        "num_copies": 2,
+        "num_frames": 1,
+        "sampling":{
+            "Taskonomy": 1.0,
+            "DrivingStereo": 1.0,
+            "Cityscape": 1.0,
+            "Mapillary": 1.0,
+            "ScanNet": 1.0,
+            "Waymo": 1.0,
+            "Argoverse2": 1.0
+        },
+        "train_datasets": [
+            "ScanNet",
+            "Waymo",
+            "Argoverse2"
+        ],
+        "val_datasets": [
+            "IBims"
+        ],
+        "data_root": "datasets",
+        "crop": "garg",
+        "augmentations": {
+            "random_scale": 2.0,
+            "random_jitter": 0.4,
+            "jitter_p": 0.8,
+            "random_blur": 2.0,
+            "blur_p": 0.2,
+            "random_gamma": 0.2,
+            "gamma_p": 0.8,
+            "grayscale_p": 0.2,
+            "flip_p": 0.5,
+            "test_context": 1.0,
+            "shape_constraints": {
+                "ratio_bounds": [0.66, 2.0],
+                "pixels_max": 200000,
+                "pixels_min": 400000,
+                "height_min": 15,
+                "width_min": 15,
+                "shape_mult": 14,
+                "sample": true
+            }
+        }
+    },
+    "model": {
+        "name": "UniDepthV1",
+        "num_heads": 8,
+        "expansion": 4,
+        "pixel_decoder": {
+            "hidden_dim": 512,
+            "depths": [3, 2, 1],
+            "dropout": 0.0
+        },
+        "pixel_encoder": {
+            "name": "dinov2_vitl14",
+            "norm": true,
+            "pretrained": "",
+            "lr": 1e-5,
+            "frozen_stages": 0
+        }
+    }
+}

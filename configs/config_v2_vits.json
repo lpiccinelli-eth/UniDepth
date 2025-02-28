@@ -1,0 +1,134 @@
+{
+    "generic": {
+        "seed": 13,
+        "deterministic": true
+    },
+    "training": {    
+    "n_iters": 300000,
+    "batch_size": 8,
+    "validation_interval": 2,
+    "nsteps_accumulation_gradient": 2,
+    "use_checkpoint": false,
+    "lr": 1e-4,
+    "lr_final": 1e-6,
+    "lr_warmup": 1.0,
+    "cycle_beta": false,
+
+    "wd": 0.1,
+    "wd_final": 0.1,
+    "warmup_iters": 75000,
+    "ld": 1.0,
+
+    "drop_path": 0.0,
+    "ema": true,
+    "f16": true,
+    "clipping": 1.0,
+    "pretrained": "/srv/beegfs02/scratch/3d_tracking/data/pami2025_unidepth/checkpoints/unidepth-v2-vits14.pt",
+    "losses": {
+        "depth": {
+            "name": "SILog",
+            "weight": 1.0,
+            "output_fn": "sqrt",
+            "input_fn": "log",
+            "dims": [-2,-1],
+            "integrated": 0.15
+        },
+        "invariance": {
+            "name": "SelfDistill",
+            "weight": 0.1,
+            "output_fn": "sqrt"
+        },
+        "camera": {
+            "name": "Regression",
+            "weight": 0.25,
+            "gamma": 1.0,
+            "alpha": 1.0,
+            "fn": "l2",
+            "output_fn": "sqrt",
+            "input_fn": "linear"
+        },
+        "ssi": {
+            "name": "EdgeGuidedLocalSSI",
+            "weight": 1.0,
+            "output_fn": "sqrt",
+            "input_fn": "log1i",
+            "use_global": true,
+            "min_samples": 6
+        },
+        "confidence": {
+            "name": "Regression",
+            "weight": 0.1,
+            "gamma": 1.0,
+            "alpha": 1.0,
+            "fn": "l1",
+            "output_fn": "sqrt",
+            "input_fn": "linear"
+        }
+    }},
+    "data": {
+        "image_shape": [480, 640],
+        "normalization": "imagenet",
+        "num_copies": 2,
+        "num_frames": 1,
+        "sampling":{
+            "Waymo": 1.0,
+            "ETH3D": 1.0
+        },
+        "train_datasets": [
+            "ETH3D",
+            "Waymo"
+        ],
+        "val_datasets": [
+            "IBims"
+        ],
+        "data_root": "datasets",
+        "crop": "garg",
+        "augmentations": {
+            "random_scale": 2.0,
+            "random_jitter": 0.4,
+            "jitter_p": 0.8,
+            "random_blur": 2.0,
+            "blur_p": 0.2,
+            "random_gamma": 0.2,
+            "gamma_p": 0.8,
+            "grayscale_p": 0.2,
+            "flip_p": 0.5,
+            "test_context": 1.0,
+            "shape_constraints": {
+                "ratio_bounds": [0.5, 2.5],
+                "pixels_max": 600000,
+                "pixels_min": 200000,
+                "height_min": 15,
+                "width_min": 15,
+                "shape_mult": 14,
+                "sample": true
+            }
+        }
+    },
+    "model": {
+        "name": "UniDepthV2",
+        "num_heads": 8,
+        "expansion": 4,
+        "layer_scale": 1.0,
+        "pixel_decoder": {
+            "name": "Decoder",
+            "hidden_dim": 256,
+            "dropout": 0.0,
+            "depths": [2, 2, 2],
+            "out_dim": 32,
+            "kernel_size": 3
+        },
+        "pixel_encoder": {
+            "lr": 2e-06,
+            "wd": 0.1,
+            "name": "dinov2_vits14",
+            "frozen_stages": 0,
+            "num_register_tokens": 0,
+            "use_norm": true,
+            "freeze_norm": true,
+            "pretrained": null,
+            "stacking_fn": "last",
+            "output_idx": [3, 6, 9, 12]
+        }
+    }
+}

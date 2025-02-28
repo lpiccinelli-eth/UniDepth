@@ -250,3 +250,53 @@ def flat_interpolate(
         0, 2, 1
     )  # b (h w) c
     return flat_tensor_interp.contiguous()
+
+
+@torch.jit.script
+def dilate(image, kernel_size: int | tuple[int, int]):
+    if isinstance(kernel_size, int):
+        kernel_size = (kernel_size, kernel_size)
+    device, dtype = image.device, image.dtype
+    padding = (kernel_size[0] // 2, kernel_size[1] // 2)
+    kernel = torch.ones((1, 1, *kernel_size), dtype=torch.float32, device=image.device)
+    dilated_image = F.conv2d(image.float(), kernel, padding=padding, stride=1)
+    dilated_image = torch.where(
+        dilated_image > 0,
+        torch.tensor(1.0, device=device),
+        torch.tensor(0.0, device=device),
+    )
+    return dilated_image.to(dtype)
+
+
+@torch.jit.script
+def erode(image, kernel_size: int | tuple[int, int]):
+    if isinstance(kernel_size, int):
+        kernel_size = (kernel_size, kernel_size)
+    device, dtype = image.device, image.dtype
+    padding = (kernel_size[0] // 2, kernel_size[1] // 2)
+    kernel = torch.ones((1, 1, *kernel_size), dtype=torch.float32, device=image.device)
+    eroded_image = F.conv2d(image.float(), kernel, padding=padding, stride=1)
+    eroded_image = torch.where(
+        eroded_image == (kernel_size[0] * kernel_size[1]),
+        torch.tensor(1.0, device=device),
+        torch.tensor(0.0, device=device),
+    )
+    return eroded_image.to(dtype)
+
+
+@torch.jit.script
+def iou(mask1: torch.Tensor, mask2: torch.Tensor) -> torch.Tensor:
+    device = mask1.device
+
+    # Ensure the masks are binary (0 or 1)
+    mask1 = mask1.to(torch.bool)
+    mask2 = mask2.to(torch.bool)
+
+    # Compute intersection and union
+    intersection = torch.sum(mask1 & mask2).to(torch.float32)
+    union = torch.sum(mask1 | mask2).to(torch.float32)
+
+    # Compute IoU
+    iou = intersection / union.clip(min=1.0)
+
+    return iou

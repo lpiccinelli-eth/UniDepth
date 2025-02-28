@@ -1,0 +1,76 @@
+import json
+import os
+
+import h5py
+import numpy as np
+import torch
+
+from unidepth.datasets.image_dataset import ImageDataset
+from unidepth.datasets.utils import DatasetFromList
+
+
+class HAMMER(ImageDataset):
+    min_depth = 0.005
+    max_depth = 10.0
+    depth_scale = 1000.0
+    train_split = "test.txt"
+    test_split = "test.txt"
+    intrisics_file = "intrinsics.json"
+    hdf5_paths = ["hammer.hdf5"]
+
+    def __init__(
+        self,
+        image_shape,
+        split_file,
+        test_mode,
+        crop=None,
+        benchmark=False,
+        augmentations_db={},
+        normalize=True,
+        resize_method="hard",
+        mini=1.0,
+        **kwargs,
+    ):
+        super().__init__(
+            image_shape=image_shape,
+            split_file=split_file,
+            test_mode=test_mode,
+            benchmark=benchmark,
+            normalize=normalize,
+            augmentations_db=augmentations_db,
+            resize_method=resize_method,
+            mini=mini,
+            **kwargs,
+        )
+        self.test_mode = test_mode
+
+        self.crop = crop
+        self.load_dataset()
+
+    def load_dataset(self):
+        h5file = h5py.File(
+            os.path.join(self.data_root, self.hdf5_paths[0]),
+            "r",
+            libver="latest",
+            swmr=True,
+        )
+        txt_file = np.array(h5file[self.split_file])
+        txt_string = txt_file.tostring().decode("ascii")[:-1]  # correct the -1
+        intrinsics = np.array(h5file[self.intrisics_file]).tostring().decode("ascii")
+        intrinsics = json.loads(intrinsics)
+        h5file.close()
+        dataset = []
+        for line in txt_string.split("\n"):
+            image_filename, depth_filename = line.strip().split(" ")
+            intrinsics_val = torch.tensor(intrinsics[image_filename]).squeeze()[:, :3]
+            sample = [image_filename, depth_filename, intrinsics_val]
+            dataset.append(sample)
+
+        self.dataset = DatasetFromList(dataset)
+        self.log_load_dataset()
+
+    def pre_pipeline(self, results):
+        results = super().pre_pipeline(results)
+        results["dense"] = [True] * self.num_frames * self.num_copies
+        results["quality"] = [1] * self.num_frames * self.num_copies
+        return results

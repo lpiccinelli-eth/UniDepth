@@ -1,9 +1,3 @@
-from .losses import MSE, SelfCons, SILog
-from .scheduler import CosineScheduler
-
-__all__ = [
-    "SILog",
-    "MSE",
-    "SelfCons",
-    "CosineScheduler",
-]
+from .losses import (ARel, Confidence, Dummy, EdgeGuidedLocalSSI, LocalSSI,
+                     Regression, SelfDistill, SILog, TeacherDistill)
+from .scheduler import CosineScheduler, PlainCosineScheduler

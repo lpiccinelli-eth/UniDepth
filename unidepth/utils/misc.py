@@ -1,5 +1,10 @@
-from collections import defaultdict
-from functools import partial, wraps
+"""
+Author: Luigi Piccinelli
+Licensed under the CC-BY NC 4.0 license (http://creativecommons.org/licenses/by-nc/4.0/)
+"""
+
+from functools import wraps
+from time import time
 
 import numpy as np
 import torch
@@ -9,33 +14,39 @@ from einops import rearrange, reduce, repeat
 from scipy import interpolate
 
 
-def max_stack(tensors):
+@torch.jit.script
+def max_stack(tensors: list[torch.Tensor]) -> torch.Tensor:
     if len(tensors) == 1:
         return tensors[0]
     return torch.stack(tensors, dim=-1).max(dim=-1).values
 
 
-def last_stack(tensors):
+def last_stack(tensors: list[torch.Tensor]) -> torch.Tensor:
     return tensors[-1]
 
 
-def first_stack(tensors):
+def first_stack(tensors: list[torch.Tensor]) -> torch.Tensor:
     return tensors[0]
 
 
-def softmax_stack(tensors, temperature=1.0):
+@torch.jit.script
+def softmax_stack(
+    tensors: list[torch.Tensor], temperature: float = 1.0
+) -> torch.Tensor:
     if len(tensors) == 1:
         return tensors[0]
     return F.softmax(torch.stack(tensors, dim=-1) / temperature, dim=-1).sum(dim=-1)
 
 
-def mean_stack(tensors):
+@torch.jit.script
+def mean_stack(tensors: list[torch.Tensor]) -> torch.Tensor:
     if len(tensors) == 1:
         return tensors[0]
     return torch.stack(tensors, dim=-1).mean(dim=-1)
 
 
-def sum_stack(tensors):
+@torch.jit.script
+def sum_stack(tensors: list[torch.Tensor]) -> torch.Tensor:
     if len(tensors) == 1:
         return tensors[0]
     return torch.stack(tensors, dim=-1).sum(dim=-1)
@@ -83,9 +94,11 @@ def get_params(module, lr, wd):
             (name in skip_list)
             or any((kw in name for kw in skip_keywords))
             or len(param.shape) == 1
+            or name.endswith(".gamma")
+            or name.endswith(".beta")
+            or name.endswith(".bias")
         ):
-            # if (name in skip_list) or any((kw in name for kw in skip_keywords)):
-            # print(name, skip_keywords)
+            # if (name in skip_list) or any((kw in name for kw in skip_keywords)) or len(param.shape) == 1:
             no_decay.append(param)
         else:
             has_decay.append(param)
@@ -96,7 +109,7 @@ def get_params(module, lr, wd):
         "lr": lr,
         "weight_decay_init": wd,
         "weight_decay_base": wd,
-        "lr_init": lr,
+        # "lr_init": lr,
         "lr_base": lr,
     }
     group2 = {
@@ -106,7 +119,7 @@ def get_params(module, lr, wd):
         "weight_decay_init": 0.0,
         "weight_decay_base": 0.0,
         "weight_decay_final": 0.0,
-        "lr_init": lr,
+        # "lr_init": lr,
         "lr_base": lr,
     }
     return [group1, group2], [lr, lr]
@@ -346,28 +359,28 @@ def load_checkpoint_swin(model, checkpoint_model):
 def add_padding_metas(out, image_metas):
     device = out.device
     # left, right, top, bottom
-    paddings = [img_meta.get("padding_size", [0] * 4) for img_meta in image_metas]
+    paddings = [img_meta.get("paddings", [0] * 4) for img_meta in image_metas]
     paddings = torch.stack(paddings).to(device)
     outs = [F.pad(o, padding, value=0.0) for padding, o in zip(paddings, out)]
     return torch.stack(outs)
 
 
+# left, right, top, bottom
 def remove_padding(out, paddings):
-    B, C, H, W = out.shape
-    device = out.device
-    # left, right, top, bottom
-    paddings = torch.stack(paddings).to(device)
+    H, W = out.shape[-2:]
     outs = [
-        o[:, padding[1] : H - padding[3], padding[0] : W - padding[2]]
+        o[..., padding[2] : H - padding[3], padding[0] : W - padding[1]]
         for padding, o in zip(paddings, out)
     ]
     return torch.stack(outs)
 
 
 def remove_padding_metas(out, image_metas):
+    B, C, H, W = out.shape
+    device = out.device
     # left, right, top, bottom
     paddings = [
-        torch.tensor(img_meta.get("padding_size", [0] * 4)) for img_meta in image_metas
+        torch.tensor(img_meta.get("paddings", [0] * 4)) for img_meta in image_metas
     ]
     return remove_padding(out, paddings)
 
@@ -409,6 +422,15 @@ def remove_leading_dim(infos):
         return infos
 
 
+def recursive_index(infos, index):
+    if isinstance(infos, dict):
+        return {k: recursive_index(v, index) for k, v in infos.items()}
+    elif isinstance(infos, torch.Tensor):
+        return infos[index]
+    else:
+        return infos
+
+
 def to_cpu(infos):
     if isinstance(infos, dict):
         return {k: to_cpu(v) for k, v in infos.items()}
@@ -416,3 +438,253 @@ def to_cpu(infos):
         return infos.detach()
     else:
         return infos
+
+
+def recursive_to(infos, device, non_blocking, cls):
+    if isinstance(infos, dict):
+        return {k: recursive_to(v, device, non_blocking, cls) for k, v in infos.items()}
+    elif isinstance(infos, list):
+        return [recursive_to(v, device, non_blocking, cls) for v in infos]
+    elif isinstance(infos, cls):
+        return infos.to(device, non_blocking=non_blocking)
+    else:
+        return infos
+
+
+def masked_mean(
+    data: torch.Tensor,
+    mask: torch.Tensor | None = None,
+    dim: list[int] | None = None,
+    keepdim: bool = False,
+) -> torch.Tensor:
+    dim = dim if dim is not None else list(range(data.dim()))
+    if mask is None:
+        return data.mean(dim=dim, keepdim=keepdim)
+    mask = mask.float()
+    mask_sum = torch.sum(mask, dim=dim, keepdim=True)
+    mask_mean = torch.sum(data * mask, dim=dim, keepdim=True) / torch.clamp(
+        mask_sum, min=1.0
+    )
+    return mask_mean.squeeze(dim) if not keepdim else mask_mean
+
+
+class ProfileMethod:
+    def __init__(self, model, func_name, track_statistics=True, verbose=False):
+        self.model = model
+        self.func_name = func_name
+        self.verbose = verbose
+        self.track_statistics = track_statistics
+        self.timings = []
+
+    def __enter__(self):
+        # Start timing
+        if self.verbose:
+            if torch.cuda.is_available():
+                torch.cuda.synchronize()
+            self.start_time = time()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if self.verbose:
+            if torch.cuda.is_available():
+                torch.cuda.synchronize()
+
+            self.end_time = time()
+
+            elapsed_time = self.end_time - self.start_time
+
+            self.timings.append(elapsed_time)
+            if self.track_statistics and len(self.timings) > 25:
+
+                # Compute statistics if tracking
+                timings_array = np.array(self.timings)
+                mean_time = np.mean(timings_array)
+                std_time = np.std(timings_array)
+                quantiles = np.percentile(timings_array, [0, 25, 50, 75, 100])
+                print(
+                    f"{self.model.__class__.__name__}.{self.func_name} took {elapsed_time:.4f} seconds"
+                )
+                print(f"Mean Time: {mean_time:.4f} seconds")
+                print(f"Std Time: {std_time:.4f} seconds")
+                print(
+                    f"Quantiles: Min={quantiles[0]:.4f}, 25%={quantiles[1]:.4f}, Median={quantiles[2]:.4f}, 75%={quantiles[3]:.4f}, Max={quantiles[4]:.4f}"
+                )
+
+            else:
+                print(
+                    f"{self.model.__class__.__name__}.{self.func_name} took {elapsed_time:.4f} seconds"
+                )
+
+
+def profile_method(track_statistics=True, verbose=False):
+    def decorator(func):
+        @wraps(func)
+        def wrapper(self, *args, **kwargs):
+            with ProfileMethod(self, func.__name__, track_statistics, verbose):
+                return func(self, *args, **kwargs)
+
+        return wrapper
+
+    return decorator
+
+
+class ProfileFunction:
+    def __init__(self, func_name, track_statistics=True, verbose=False):
+        self.func_name = func_name
+        self.verbose = verbose
+        self.track_statistics = track_statistics
+        self.timings = []
+
+    def __enter__(self):
+        # Start timing
+        if self.verbose:
+            if torch.cuda.is_available():
+                torch.cuda.synchronize()
+            self.start_time = time()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if self.verbose:
+            if torch.cuda.is_available():
+                torch.cuda.synchronize()
+
+            self.end_time = time()
+
+            elapsed_time = self.end_time - self.start_time
+
+            self.timings.append(elapsed_time)
+            if self.track_statistics and len(self.timings) > 25:
+
+                # Compute statistics if tracking
+                timings_array = np.array(self.timings)
+                mean_time = np.mean(timings_array)
+                std_time = np.std(timings_array)
+                quantiles = np.percentile(timings_array, [0, 25, 50, 75, 100])
+                print(f"{self.func_name} took {elapsed_time:.4f} seconds")
+                print(f"Mean Time: {mean_time:.4f} seconds")
+                print(f"Std Time: {std_time:.4f} seconds")
+                print(
+                    f"Quantiles: Min={quantiles[0]:.4f}, 25%={quantiles[1]:.4f}, Median={quantiles[2]:.4f}, 75%={quantiles[3]:.4f}, Max={quantiles[4]:.4f}"
+                )
+
+            else:
+                print(f"{self.func_name} took {elapsed_time:.4f} seconds")
+
+
+def profile_function(track_statistics=True, verbose=False):
+    def decorator(func):
+        @wraps(func)
+        def wrapper(self, *args, **kwargs):
+            with ProfileFunction(func.__name__, track_statistics, verbose):
+                return func(self, *args, **kwargs)
+
+        return wrapper
+
+    return decorator
+
+
+def squeeze_list(nested_list, dim, current_dim=0):
+    # If the current dimension is in the list of indices to squeeze
+    if isinstance(nested_list, list) and len(nested_list) == 1 and current_dim == dim:
+        return squeeze_list(nested_list[0], dim, current_dim + 1)
+    elif isinstance(nested_list, list):
+        return [squeeze_list(item, dim, current_dim + 1) for item in nested_list]
+    else:
+        return nested_list
+
+
+def match_gt(tensor1, tensor2, padding1, padding2, mode: str = "bilinear"):
+    """
+    Transform each item in tensor1 batch to match tensor2's dimensions and padding.
+
+    Args:
+        tensor1 (torch.Tensor): The input tensor to transform, with shape (batch_size, channels, height, width).
+        tensor2 (torch.Tensor): The target tensor to match, with shape (batch_size, channels, height, width).
+        padding1 (tuple): Padding applied to tensor1 (pad_left, pad_right, pad_top, pad_bottom).
+        padding2 (tuple): Desired padding to be applied to match tensor2 (pad_left, pad_right, pad_top, pad_bottom).
+
+    Returns:
+        torch.Tensor: The batch of transformed tensors matching tensor2's size and padding.
+    """
+    # Get batch size
+    batch_size = len(tensor1)
+    src_dtype = tensor1[0].dtype
+    tgt_dtype = tensor2[0].dtype
+
+    # List to store transformed tensors
+    transformed_tensors = []
+
+    for i in range(batch_size):
+        item1 = tensor1[i]
+        item2 = tensor2[i]
+
+        h1, w1 = item1.shape[1], item1.shape[2]
+        pad1_l, pad1_r, pad1_t, pad1_b = (
+            padding1[i] if padding1 is not None else (0, 0, 0, 0)
+        )
+        pad2_l, pad2_r, pad2_t, pad2_b = (
+            padding2[i] if padding2 is not None else (0, 0, 0, 0)
+        )
+        item1_unpadded = item1[:, pad1_t : h1 - pad1_b, pad1_l : w1 - pad1_r]
+
+        h2, w2 = (
+            item2.shape[1] - pad2_t - pad2_b,
+            item2.shape[2] - pad2_l - pad2_r,
+        )
+
+        item1_resized = F.interpolate(
+            item1_unpadded.unsqueeze(0).to(tgt_dtype), size=(h2, w2), mode=mode
+        )
+        item1_padded = F.pad(item1_resized, (pad2_l, pad2_r, pad2_t, pad2_b))
+        transformed_tensors.append(item1_padded)
+
+    transformed_batch = torch.cat(transformed_tensors)
+    return transformed_batch.to(src_dtype)
+
+
+def match_intrinsics(K1, tensor1, tensor2, padding1, padding2):
+    """
+    Adjust camera intrinsics K1 to match the size and padding transformation applied to tensor1
+    so that it corresponds correctly to tensor2.
+
+    Args:
+        K1 (torch.Tensor): The camera intrinsics matrix for tensor1, shape (batch_size, 3, 3).
+        tensor1 (torch.Tensor): The original image tensor, shape (batch_size, C, H1, W1).
+        tensor2 (torch.Tensor): The target image tensor, shape (batch_size, C, H2, W2).
+        padding1 (list of tuples): List of padding applied to tensor1 (pad_left, pad_right, pad_top, pad_bottom).
+        padding2 (list of tuples): Desired padding to be applied to match tensor2 (pad_left, pad_right, pad_top, pad_bottom).
+
+    Returns:
+        torch.Tensor: The adjusted intrinsics matrix of shape (batch_size, 3, 3).
+    """
+    batch_size = K1.shape[0]
+    K1_new = K1.clone()
+
+    for i in range(batch_size):
+        h1, w1 = tensor1.shape[2], tensor1.shape[3]
+        h2, w2 = tensor2.shape[2], tensor2.shape[3]
+
+        # Remove original padding
+        pad1_l, pad1_r, pad1_t, pad1_b = (
+            padding1[i] if padding1 is not None else (0, 0, 0, 0)
+        )
+        w1_unpadded, h1_unpadded = w1 - (pad1_l + pad1_r), h1 - (pad1_t + pad1_b)
+
+        # Compute new image size after removing original padding
+        pad2_l, pad2_r, pad2_t, pad2_b = (
+            padding2[i] if padding2 is not None else (0, 0, 0, 0)
+        )
+        w2_unpadded, h2_unpadded = w2 - (pad2_l + pad2_r), h2 - (pad2_t + pad2_b)
+
+        # Compute scaling factors
+        scale_x = w2_unpadded / w1_unpadded
+        scale_y = h2_unpadded / h1_unpadded
+
+        # Update focal length (fx, fy) and principal point (cx, cy)
+        K1_new[i, 0, 0] *= scale_x  # fx
+        K1_new[i, 1, 1] *= scale_y  # fy
+
+        K1_new[i, 0, 2] = (K1[i, 0, 2] - pad1_l) * scale_x + pad2_l  # cx
+        K1_new[i, 1, 2] = (K1[i, 1, 2] - pad1_t) * scale_y + pad2_t  # cy
+
+    return K1_new
