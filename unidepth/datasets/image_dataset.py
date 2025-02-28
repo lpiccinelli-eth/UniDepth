@@ -75,25 +75,25 @@ class ImageDataset(BaseDataset):
                 if "image" not in key_mapper and "depth" not in key_mapper:
                     continue
                 value = sample[idx_mapper]
-                results[key_mapper] = value
+                results[(0, 0)][key_mapper] = value
                 name = key_mapper.replace("_filename", "")
                 value_root = "/" + value
 
                 if "image" in key_mapper:
-                    results["filename"] = value
+                    results[(0, 0)]["filename"] = value
                     file = h5file_chunk.get_node(value_root).read()
                     image = (
                         torchvision.io.decode_image(torch.from_numpy(file))
                         .to(torch.uint8)
                         .squeeze()
                     )
-                    results["image_fields"].add(name)
-                    results[f"image_ori_shape"] = image.shape[-2:]
-                    results[name] = image[None, ...]
+                    results[(0, 0)]["image_fields"].add(name)
+                    results[(0, 0)][f"image_ori_shape"] = image.shape[-2:]
+                    results[(0, 0)][name] = image[None, ...]
 
                     # collect camera information for the given image
                     name = name.replace("image_", "")
-                    results["camera_fields"].update({"camera", "cam2w"})
+                    results[(0, 0)]["camera_fields"].update({"camera", "cam2w"})
                     K = self.get_intrinsics(idx, value)
                     if K is None:
                         K = torch.eye(3)
@@ -102,8 +102,10 @@ class ImageDataset(BaseDataset):
                         K[1, 2] = 0.5 * self.image_shape[0]
 
                     camera = Pinhole(K=K[None, ...].clone())
-                    results["camera"] = BatchCamera.from_camera(camera)
-                    results["cam2w"] = self.get_extrinsics(idx, value)[None, ...]
+                    results[(0, 0)]["camera"] = BatchCamera.from_camera(camera)
+                    results[(0, 0)]["cam2w"] = self.get_extrinsics(idx, value)[
+                        None, ...
+                    ]
 
                 elif "depth" in key_mapper:
                     # start = time()
@@ -113,13 +115,13 @@ class ImageDataset(BaseDataset):
                     if depth.ndim == 3:
                         depth = depth[2] + depth[1] * 255 + depth[0] * 255 * 255
 
-                    results["gt_fields"].add(name)
-                    results[f"depth_ori_shape"] = depth.shape
+                    results[(0, 0)]["gt_fields"].add(name)
+                    results[(0, 0)][f"depth_ori_shape"] = depth.shape
 
                     depth = (
                         depth.view(1, 1, *depth.shape).contiguous() / self.depth_scale
                     )
-                    results[name] = depth
+                    results[(0, 0)][name] = depth
 
         results = self.preprocess(results)
         if not self.test_mode:
@@ -130,7 +132,6 @@ class ImageDataset(BaseDataset):
     def preprocess(self, results):
         results = self.replicate(results)
         for i, seq in enumerate(results["sequence_fields"]):
-            print(self.__class__.__name__, i, seq, results[seq].keys())
             self.resizer.ctx = None
             results[seq] = self.resizer(results[seq])
             num_pts = torch.count_nonzero(results[seq]["depth"] > 0)
@@ -158,15 +159,15 @@ class ImageDataset(BaseDataset):
         return results
 
     def __getitem__(self, idx):
-        try:
-            if isinstance(idx, (list, tuple)):
-                results = [self.get_single_item(i) for i in idx]
-            else:
-                results = self.get_single_item(idx)
-        except Exception as e:
-            print(f"Error loading sequence {idx} for {self.__class__.__name__}: {e}")
-            idx = np.random.randint(0, len(self.dataset))
-            results = self[idx]
+        # try:
+        if isinstance(idx, (list, tuple)):
+            results = [self.get_single_item(i) for i in idx]
+        else:
+            results = self.get_single_item(idx)
+        # except Exception as e:
+        #     print(f"Error loading sequence {idx} for {self.__class__.__name__}: {e}")
+        #     idx = np.random.randint(0, len(self.dataset))
+        #     results = self[idx]
         return results
 
     def get_intrinsics(self, idx, image_name):

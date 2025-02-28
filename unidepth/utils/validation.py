@@ -1,3 +1,8 @@
+"""
+Author: Luigi Piccinelli
+Licensed under the CC-BY NC 4.0 license (http://creativecommons.org/licenses/by-nc/4.0/)
+"""
+
 import torch
 import torch.utils.data.distributed
 import wandb
@@ -71,7 +76,7 @@ def validate(model, test_loaders, step, context):
                     for meta in batch["img_metas"]
                 ]
 
-                preds, losses = model(batch["data"], batch["img_metas"])
+                preds = model(batch["data"], batch["img_metas"])
 
             batch, _ = original_image(batch, preds=None)
             test_loader.dataset.accumulate_metrics(

@@ -150,13 +150,15 @@ def main_worker(config: Dict[str, Any], args: argparse.Namespace):
     step = 0
     if config["training"].get("pretrained", None) is not None:
         ddp_model.load_pretrained(config["training"]["pretrained"])
-        pretrained = torch.load(config["training"]["pretrained"], map_location="cpu")
+        pretrained = torch.load(
+            config["training"]["pretrained"], map_location="cpu", weights_only=False
+        )
         try:
             optimizer.load_state_dict(pretrained["optimizer"])
         except Exception as e:
             if is_main_process():
                 print("Could not load optimizer state dict:", e)
-        step = pretrained["step"]
+        step = pretrained.get("step", step)
 
     # EMA
     ema_class = (

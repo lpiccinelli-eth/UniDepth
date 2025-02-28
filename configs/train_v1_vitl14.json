@@ -84,8 +84,8 @@
             "test_context": 1.0,
             "shape_constraints": {
                 "ratio_bounds": [0.66, 2.0],
-                "pixels_max": 250000,
-                "pixels_min": 250000,
+                "pixels_max": 200000,
+                "pixels_min": 400000,
                 "height_min": 15,
                 "width_min": 15,
                 "shape_mult": 14,

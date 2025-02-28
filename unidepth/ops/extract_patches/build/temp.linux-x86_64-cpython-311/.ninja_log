@@ -1,0 +1,6 @@
+# ninja log v5
+3	14905	1721126207917554876	/home/lpiccinelli/Workspace/unidepth-dev/unidepth/ops/extract_patches/build/temp.linux-x86_64-cpython-311/home/lpiccinelli/Workspace/unidepth-dev/unidepth/ops/extract_patches/src/extract_patches.o	e6b8c3cd8247ba2b
+2	14950	1721126207973554961	/home/lpiccinelli/Workspace/unidepth-dev/unidepth/ops/extract_patches/build/temp.linux-x86_64-cpython-311/home/lpiccinelli/Workspace/unidepth-dev/unidepth/ops/extract_patches/src/cpu/extract_patches_cpu.o	fab05f8861620178
+14	16424	1740737652117447705	/home/lpiccinelli/Workspace/UniDepth/unidepth/ops/extract_patches/build/temp.linux-x86_64-cpython-311/home/lpiccinelli/Workspace/UniDepth/unidepth/ops/extract_patches/src/cpu/extract_patches_cpu.o	d8c9a05ce506c212
+15	16563	1740737652261449517	/home/lpiccinelli/Workspace/UniDepth/unidepth/ops/extract_patches/build/temp.linux-x86_64-cpython-311/home/lpiccinelli/Workspace/UniDepth/unidepth/ops/extract_patches/src/extract_patches.o	feed18429dc83044
+14	110592	1740737746266631077	/home/lpiccinelli/Workspace/UniDepth/unidepth/ops/extract_patches/build/temp.linux-x86_64-cpython-311/home/lpiccinelli/Workspace/UniDepth/unidepth/ops/extract_patches/src/cuda/extract_patches_kernel.o	de3f5e267aee5d8e

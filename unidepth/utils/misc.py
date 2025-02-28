@@ -1,3 +1,8 @@
+"""
+Author: Luigi Piccinelli
+Licensed under the CC-BY NC 4.0 license (http://creativecommons.org/licenses/by-nc/4.0/)
+"""
+
 from functools import wraps
 from time import time
 
@@ -617,18 +622,69 @@ def match_gt(tensor1, tensor2, padding1, padding2, mode: str = "bilinear"):
         pad1_l, pad1_r, pad1_t, pad1_b = (
             padding1[i] if padding1 is not None else (0, 0, 0, 0)
         )
+        pad2_l, pad2_r, pad2_t, pad2_b = (
+            padding2[i] if padding2 is not None else (0, 0, 0, 0)
+        )
         item1_unpadded = item1[:, pad1_t : h1 - pad1_b, pad1_l : w1 - pad1_r]
 
         h2, w2 = (
-            item2.shape[1] - padding2[i][2] - padding2[i][3],
-            item2.shape[2] - padding2[i][0] - padding2[i][1],
+            item2.shape[1] - pad2_t - pad2_b,
+            item2.shape[2] - pad2_l - pad2_r,
         )
 
         item1_resized = F.interpolate(
             item1_unpadded.unsqueeze(0).to(tgt_dtype), size=(h2, w2), mode=mode
         )
-        item1_padded = F.pad(item1_resized, tuple(padding2[i]))
+        item1_padded = F.pad(item1_resized, (pad2_l, pad2_r, pad2_t, pad2_b))
         transformed_tensors.append(item1_padded)
 
     transformed_batch = torch.cat(transformed_tensors)
     return transformed_batch.to(src_dtype)
+
+
+def match_intrinsics(K1, tensor1, tensor2, padding1, padding2):
+    """
+    Adjust camera intrinsics K1 to match the size and padding transformation applied to tensor1
+    so that it corresponds correctly to tensor2.
+
+    Args:
+        K1 (torch.Tensor): The camera intrinsics matrix for tensor1, shape (batch_size, 3, 3).
+        tensor1 (torch.Tensor): The original image tensor, shape (batch_size, C, H1, W1).
+        tensor2 (torch.Tensor): The target image tensor, shape (batch_size, C, H2, W2).
+        padding1 (list of tuples): List of padding applied to tensor1 (pad_left, pad_right, pad_top, pad_bottom).
+        padding2 (list of tuples): Desired padding to be applied to match tensor2 (pad_left, pad_right, pad_top, pad_bottom).
+
+    Returns:
+        torch.Tensor: The adjusted intrinsics matrix of shape (batch_size, 3, 3).
+    """
+    batch_size = K1.shape[0]
+    K1_new = K1.clone()
+
+    for i in range(batch_size):
+        h1, w1 = tensor1.shape[2], tensor1.shape[3]
+        h2, w2 = tensor2.shape[2], tensor2.shape[3]
+
+        # Remove original padding
+        pad1_l, pad1_r, pad1_t, pad1_b = (
+            padding1[i] if padding1 is not None else (0, 0, 0, 0)
+        )
+        w1_unpadded, h1_unpadded = w1 - (pad1_l + pad1_r), h1 - (pad1_t + pad1_b)
+
+        # Compute new image size after removing original padding
+        pad2_l, pad2_r, pad2_t, pad2_b = (
+            padding2[i] if padding2 is not None else (0, 0, 0, 0)
+        )
+        w2_unpadded, h2_unpadded = w2 - (pad2_l + pad2_r), h2 - (pad2_t + pad2_b)
+
+        # Compute scaling factors
+        scale_x = w2_unpadded / w1_unpadded
+        scale_y = h2_unpadded / h1_unpadded
+
+        # Update focal length (fx, fy) and principal point (cx, cy)
+        K1_new[i, 0, 0] *= scale_x  # fx
+        K1_new[i, 1, 1] *= scale_y  # fy
+
+        K1_new[i, 0, 2] = (K1[i, 0, 2] - pad1_l) * scale_x + pad2_l  # cx
+        K1_new[i, 1, 2] = (K1[i, 1, 2] - pad1_t) * scale_y + pad2_t  # cy
+
+    return K1_new

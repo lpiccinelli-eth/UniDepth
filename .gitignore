@@ -7,6 +7,7 @@ __pycache__/
 
 #scripts
 _*.sh
+_*.py
 
 # package
 unidepth.egg-info

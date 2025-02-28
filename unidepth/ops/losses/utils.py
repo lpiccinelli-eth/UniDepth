@@ -7,6 +7,9 @@ FNS = {
     "sqrt": lambda x: torch.sqrt(x + 1e-4),
     "log": lambda x: torch.log(x + 1e-4),
     "log1": lambda x: torch.log(x + 1),
+    # if x -> 0 : log(1/x)
+    # if x -> inf : log(1+1/x) -> 1/x + hot
+    "log1i": lambda x: torch.log(1 + 50 / (1e-4 + x)),
     "linear": lambda x: x,
     "square": torch.square,
     "disp": lambda x: 1 / (x + 1e-4),
@@ -159,6 +162,9 @@ def ssi(
     input: torch.Tensor, target: torch.Tensor, mask: torch.Tensor, dim: list[int]
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     # recalculate mask with points in 95% confidence interval
+    # the statistics are calculated on the stable points and
+    # are similar ot median/MAD, but median/MAD gradients
+    # are really weird, so this is a workaround
     input_detach = input.detach()
     input_mean, input_var = masked_mean_var(input_detach, mask=mask, dim=dim)
     target_mean, target_var = masked_mean_var(target, mask=mask, dim=dim)

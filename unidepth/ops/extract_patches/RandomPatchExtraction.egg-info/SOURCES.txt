@@ -1,0 +1,12 @@
+setup.py
+/home/lpiccinelli/Workspace/UniDepth/unidepth/ops/extract_patches/src/extract_patches.cpp
+/home/lpiccinelli/Workspace/UniDepth/unidepth/ops/extract_patches/src/cpu/extract_patches_cpu.cpp
+/home/lpiccinelli/Workspace/UniDepth/unidepth/ops/extract_patches/src/cuda/extract_patches_kernel.cu
+RandomPatchExtraction.egg-info/PKG-INFO
+RandomPatchExtraction.egg-info/SOURCES.txt
+RandomPatchExtraction.egg-info/dependency_links.txt
+RandomPatchExtraction.egg-info/top_level.txt
+functions/__init__.py
+functions/extract_patches.py
+modules/__init__.py
+modules/patch_extractor.py

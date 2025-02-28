@@ -1,13 +1,38 @@
+"""
+Author: Luigi Piccinelli
+Licensed under the CC-BY NC 4.0 license (http://creativecommons.org/licenses/by-nc/4.0/)
+"""
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from einops import rearrange
 from timm.models.layers import trunc_normal_
 
-from unidepth.layers import (MLP, AttentionBlock, ConvUpsampleShuffleResidual,
-                             NystromBlock, PositionEmbeddingSine)
-from unidepth.utils.geometric import flat_interpolate, generate_rays
+from unidepth.layers import (MLP, AttentionBlock, AttentionLayer,
+                             PositionEmbeddingSine, ResUpsampleBil)
+from unidepth.utils.coordinate import coords_grid
+from unidepth.utils.geometric import flat_interpolate
+from unidepth.utils.misc import profile_method
 from unidepth.utils.positional_embedding import generate_fourier_features
+
+VERBOSE = False
+
+
+def orthonormal_init(num_tokens, dims):
+
+    pe = torch.randn(num_tokens, dims)
+
+    # Apply Gram-Schmidt process to make the matrix orthonormal
+    for i in range(num_tokens):
+        for j in range(i):
+            # Subtract the projection of current row onto previous row
+            pe[i] -= torch.dot(pe[i], pe[j]) * pe[j]
+
+        # Normalize the current row
+        pe[i] = F.normalize(pe[i], p=2, dim=0)
+
+    return pe
 
 
 class ListAdapter(nn.Module):
@@ -15,18 +40,13 @@ class ListAdapter(nn.Module):
         super().__init__()
         self.input_adapters = nn.ModuleList([])
         self.num_chunks = len(input_dims)
-        self.checkpoint = True
         for input_dim in input_dims:
-            self.input_adapters.append(
-                nn.Sequential(
-                    nn.LayerNorm(input_dim), nn.Linear(input_dim, hidden_dim), nn.GELU()
-                )
-            )
+            self.input_adapters.append(nn.Linear(input_dim, hidden_dim))
 
-    def forward(self, x: torch.Tensor, splits: torch.Tensor) -> torch.Tensor:
-        xs = torch.split(x, splits.int().tolist(), dim=-1)
-        xs = [adapter(x) for x, adapter in zip(xs, self.input_adapters)]
-        return torch.cat(xs, dim=-1)
+    @profile_method(verbose=VERBOSE)
+    def forward(self, xs: torch.Tensor) -> list[torch.Tensor]:
+        outs = [self.input_adapters[i](x) for i, x in enumerate(xs)]
+        return outs
 
 
 class CameraHead(nn.Module):
@@ -36,114 +56,67 @@ class CameraHead(nn.Module):
         num_heads: int = 8,
         expansion: int = 4,
         dropout: float = 0.0,
+        layer_scale: float = 1.0,
         **kwargs,
     ):
         super().__init__()
+        self.num_params = 4
+
         self.aggregate1 = AttentionBlock(
-            hidden_dim, num_heads=1, expansion=expansion, dropout=dropout
+            hidden_dim,
+            num_heads=num_heads,
+            expansion=expansion,
+            dropout=dropout,
+            layer_scale=layer_scale,
+            use_bias=False,
         )
         self.aggregate2 = AttentionBlock(
-            hidden_dim, num_heads=1, expansion=expansion, dropout=dropout
+            hidden_dim,
+            num_heads=num_heads,
+            expansion=expansion,
+            dropout=dropout,
+            layer_scale=layer_scale,
+            use_bias=False,
         )
         self.latents_pos = nn.Parameter(
-            torch.randn(1, 4, hidden_dim), requires_grad=True
+            torch.randn(1, self.num_params, hidden_dim), requires_grad=True
         )
-        self.in_features = MLP(hidden_dim, expansion=2, dropout=dropout)
-        self.project_cls = MLP(hidden_dim, dropout=dropout)
-        self.out = MLP(hidden_dim, expansion=2, dropout=0.0, output_dim=1)
+        self.project = MLP(
+            hidden_dim, expansion=1, dropout=dropout, output_dim=hidden_dim
+        )
+        self.out_pinhole = MLP(hidden_dim, expansion=1, dropout=dropout, output_dim=1)
 
     def fill_intrinsics(self, x):
-        camera_intrinsics = torch.zeros(
-            x.shape[0], 3, 3, device=x.device, requires_grad=False
+        fx, fy, cx, cy = x.unbind(dim=-1)
+        fx = torch.exp(fx)
+        fy = torch.exp(fy)
+        cx = torch.sigmoid(cx)
+        cy = torch.sigmoid(cy)
+        diagonal = (self.shapes[0] ** 2 + self.shapes[1] ** 2) ** 0.5
+        correction_tensor = torch.tensor(
+            [0.7 * diagonal, 0.7 * diagonal, self.shapes[1], self.shapes[0]],
+            device=x.device,
+            dtype=x.dtype,
         )
-        camera_intrinsics[:, 0, 0] = x[:, 0].exp()
-        camera_intrinsics[:, 1, 1] = x[:, 1].exp()
-        camera_intrinsics[:, 0, 2] = x[:, 2].sigmoid()
-        camera_intrinsics[:, 1, 2] = x[:, 3].sigmoid()
-        camera_intrinsics[:, 2, 2] = 1.0
-        return camera_intrinsics
+        intrinsics = torch.stack([fx, fy, cx, cy], dim=1)
+        intrinsics = correction_tensor.unsqueeze(0) * intrinsics
+        return intrinsics
 
+    @profile_method(verbose=VERBOSE)
     def forward(self, features, cls_tokens, pos_embed) -> torch.Tensor:
         features = features.unbind(dim=-1)
-        cls_tokens = self.project_cls(cls_tokens)
+        tokens = self.project(cls_tokens)
+
         latents_pos = self.latents_pos.expand(cls_tokens.shape[0], -1, -1)
-        features = self.in_features(torch.cat(features, dim=1) + pos_embed)
-        features = torch.cat((features, cls_tokens), dim=1)
-        cls_tokens = self.aggregate1(
-            cls_tokens, context=features, pos_embed=latents_pos
-        )
-        cls_tokens = self.aggregate2(
-            cls_tokens, context=features, pos_embed=latents_pos
-        )
+        tokens = self.aggregate1(tokens, pos_embed=latents_pos)
+        tokens = self.aggregate2(tokens, pos_embed=latents_pos)
 
-        # project to intrinsics
-        x = self.out(cls_tokens).squeeze(-1)
+        x = self.out_pinhole(tokens.clone()).squeeze(-1)
         camera_intrinsics = self.fill_intrinsics(x)
-
         return camera_intrinsics
 
     def set_shapes(self, shapes: tuple[int, int]):
         self.shapes = shapes
-
-
-class GlobalHead(nn.Module):
-    def __init__(
-        self,
-        hidden_dim: int,
-        camera_dim: int,
-        expansion: int = 4,
-        dropout: float = 0.0,
-        **kwargs,
-    ):
-        super().__init__()
-        self.camera_dim = camera_dim
-        self.in_features = nn.Linear(hidden_dim, hidden_dim)
-        self.project_rays = nn.Linear(camera_dim + 3, hidden_dim)
-        self.aggregate1 = AttentionBlock(
-            hidden_dim, num_heads=1, expansion=expansion, dropout=dropout
-        )
-        self.aggregate2 = AttentionBlock(
-            hidden_dim, num_heads=1, expansion=expansion, dropout=dropout
-        )
-        self.project_cls = MLP(hidden_dim, dropout=dropout)
-        self.out = MLP(hidden_dim, expansion=2, dropout=0.0, output_dim=1)
-
-    def embed_rays(self, rays, shapes):
-        rays_embedding = flat_interpolate(rays, old=self.original_shapes, new=shapes)
-        rays_embedding = F.normalize(rays_embedding, dim=-1)
-        rays_embedding = generate_fourier_features(
-            rays_embedding,
-            dim=self.camera_dim,
-            max_freq=max(shapes) // 2,
-            use_log=True,
-            cat_orig=True,
-        )
-        return rays_embedding
-
-    def set_original_shapes(self, shapes: tuple[int, int]):
-        self.original_shapes = shapes
-
-    def set_shapes(self, shapes: tuple[int, int]):
-        self.shapes = shapes
-
-    def get_scaleshift(self, x):
-        scale, shift = torch.chunk(x, 2, dim=1)
-        scale = scale.exp().reshape(-1, 1, 1, 1)
-        shift = shift.reshape(-1, 1, 1, 1)
-        return scale, shift
-
-    def forward(self, features, cls_tokens, rays) -> torch.Tensor:
-        features = features.unbind(dim=-1)
-        cls_tokens = self.project_cls(cls_tokens)
-        rays_embedding = self.project_rays(self.embed_rays(rays, self.shapes))
-        rays_embedding = rays_embedding.repeat(1, len(features), 1)
-        features = self.in_features(torch.cat(features, dim=1) + rays_embedding)
-        features = torch.cat((features, cls_tokens), dim=1)
-        cls_tokens = self.aggregate1(cls_tokens, context=features)
-        cls_tokens = self.aggregate2(cls_tokens, context=features)
-        x = self.out(cls_tokens).squeeze(-1)
-        scale, shift = self.get_scaleshift(x)
-        return scale, shift
 
 
 class DepthHead(nn.Module):
@@ -153,79 +126,108 @@ class DepthHead(nn.Module):
         num_heads: int = 8,
         expansion: int = 4,
         depths: int | list[int] = 4,
-        checkpoint: bool = True,
         camera_dim: int = 256,
-        num_resolutions: int = 4,
         dropout: float = 0.0,
+        kernel_size: int = 7,
+        layer_scale: float = 1.0,
+        out_dim: int = 1,
+        use_norm=False,
+        num_prompt_blocks=1,
         **kwargs,
     ) -> None:
         super().__init__()
-        self.checkpoint = checkpoint
+
         self.camera_dim = camera_dim
-        self.skip_depth = False
+        self.out_dim = out_dim
+        self.hidden_dim = hidden_dim
 
-        self.to_latents = MLP(hidden_dim, expansion=2, dropout=dropout)
-        self.features_channel_cat = nn.Linear(hidden_dim * num_resolutions, hidden_dim)
-        self.aggregate_16 = AttentionBlock(
-            hidden_dim,
-            num_heads=1,
-            expansion=expansion,
-            dropout=dropout,
-            context_dim=hidden_dim,
-        )
-        self.prompt_camera = AttentionBlock(
-            hidden_dim,
-            num_heads=1,
-            expansion=expansion,
-            dropout=dropout,
-            context_dim=hidden_dim,
-        )
-
-        self.rays_layers = nn.ModuleList([])
         self.ups = nn.ModuleList([])
-        self.process_layers = nn.ModuleList([])
-        self.norms, self.out_layers = nn.ModuleList([]), nn.ModuleList([])
-        self.depth_mlp, self.confidence_mlp = nn.ModuleList([]), nn.ModuleList([])
-        for i, depth in enumerate(depths):
-            blk_lst = nn.ModuleList([])
-            for _ in range(depth):
-                blk_lst.append(
-                    NystromBlock(
-                        hidden_dim // int(2**i),
-                        num_heads=num_heads // int(2**i),
-                        expansion=expansion,
-                        dropout=dropout,
-                    )
-                )
-            self.process_layers.append(blk_lst)
-            self.rays_layers.append(nn.Linear(camera_dim + 3, hidden_dim // int(2**i)))
-            self.ups.append(
-                ConvUpsampleShuffleResidual(
-                    hidden_dim // int(2**i),
+        self.depth_mlp = nn.ModuleList([])
+        self.process_features = nn.ModuleList([])
+        self.project_features = nn.ModuleList([])
+        self.prompt_camera = nn.ModuleList([])
+        mult = 2
+        self.to_latents = nn.Linear(hidden_dim, hidden_dim)
+
+        for _ in range(4):
+            self.prompt_camera.append(
+                AttentionLayer(
+                    num_blocks=num_prompt_blocks,
+                    dim=hidden_dim,
+                    num_heads=num_heads,
                     expansion=expansion,
-                    kernel_size=7,
-                    num_layers=2,
+                    dropout=dropout,
+                    layer_scale=-1.0,
+                    context_dim=hidden_dim,
+                    use_bias=False,
                 )
             )
-            self.depth_mlp.append(
-                MLP(
-                    input_dim=hidden_dim // int(2 ** (i + 1)),
-                    output_dim=16,
-                    expansion=1,
+
+        for i, depth in enumerate(depths):
+            current_dim = min(hidden_dim, mult * hidden_dim // int(2**i))
+            next_dim = mult * hidden_dim // int(2 ** (i + 1))
+            output_dim = max(next_dim, out_dim)
+            self.process_features.append(
+                nn.ConvTranspose2d(
+                    hidden_dim,
+                    current_dim,
+                    kernel_size=max(1, 2 * i),
+                    stride=max(1, 2 * i),
+                    padding=0,
                 )
             )
-            self.confidence_mlp.append(
-                MLP(
-                    input_dim=hidden_dim // int(2 ** (i + 1)),
-                    output_dim=16,
-                    expansion=1,
+
+            self.ups.append(
+                ResUpsampleBil(
+                    current_dim,
+                    output_dim=output_dim,
+                    expansion=expansion,
+                    layer_scale=layer_scale,
+                    kernel_size=kernel_size,
+                    num_layers=depth,
+                    use_norm=use_norm,
                 )
             )
-        self.to_depth = nn.Conv2d(
-            16 * len(depths), 1, 7, padding=3, padding_mode="reflect"
+
+            depth_mlp = nn.Identity()
+            if i == len(depths) - 1:
+                depth_mlp = nn.Sequential(
+                    nn.LayerNorm(next_dim), nn.Linear(next_dim, output_dim)
+                )
+
+            self.depth_mlp.append(depth_mlp)
+
+        self.confidence_mlp = nn.Sequential(
+            nn.LayerNorm(next_dim), nn.Linear(next_dim, output_dim)
         )
-        self.to_confidence = nn.Conv2d(
-            16 * len(depths), 1, 7, padding=3, padding_mode="reflect"
+
+        self.to_depth_lr = nn.Conv2d(
+            output_dim,
+            output_dim // 2,
+            kernel_size=3,
+            padding=1,
+            padding_mode="reflect",
+        )
+        self.to_confidence_lr = nn.Conv2d(
+            output_dim,
+            output_dim // 2,
+            kernel_size=3,
+            padding=1,
+            padding_mode="reflect",
+        )
+        self.to_depth_hr = nn.Sequential(
+            nn.Conv2d(
+                output_dim // 2, 32, kernel_size=3, padding=1, padding_mode="reflect"
+            ),
+            nn.LeakyReLU(),
+            nn.Conv2d(32, 1, kernel_size=1),
+        )
+        self.to_confidence_hr = nn.Sequential(
+            nn.Conv2d(
+                output_dim // 2, 32, kernel_size=3, padding=1, padding_mode="reflect"
+            ),
+            nn.LeakyReLU(),
+            nn.Conv2d(32, 1, kernel_size=1),
         )
 
     def set_original_shapes(self, shapes: tuple[int, int]):
@@ -234,113 +236,113 @@ class DepthHead(nn.Module):
     def set_shapes(self, shapes: tuple[int, int]):
         self.shapes = shapes
 
-    def embed_rays(self, rays, shapes):
-        rays_embedding = flat_interpolate(rays, old=self.original_shapes, new=shapes)
-        rays_embedding = F.normalize(rays_embedding, dim=-1)
+    @profile_method(verbose=VERBOSE)
+    def embed_rays(self, rays):
+        rays_embedding = flat_interpolate(
+            rays, old=self.original_shapes, new=self.shapes, antialias=True
+        )
+        rays_embedding = rays_embedding / torch.norm(
+            rays_embedding, dim=-1, keepdim=True
+        ).clip(min=1e-4)
+        x, y, z = rays_embedding[..., 0], rays_embedding[..., 1], rays_embedding[..., 2]
+        polar = torch.acos(z)
+        x_clipped = x.abs().clip(min=1e-3) * (2 * (x >= 0).int() - 1)
+        azimuth = torch.atan2(y, x_clipped)
+        rays_embedding = torch.stack([polar, azimuth], dim=-1)
         rays_embedding = generate_fourier_features(
             rays_embedding,
-            dim=self.camera_dim,
-            max_freq=max(shapes) // 2,
+            dim=self.hidden_dim,
+            max_freq=max(self.shapes) // 2,
             use_log=True,
-            cat_orig=True,
+            cat_orig=False,
         )
         return rays_embedding
 
-    def project_rays(self, rays, shapes):
-        embedded_rays = []
-        for i, layer in enumerate(self.rays_layers):
-            embedded_rays.append(
-                layer(self.embed_rays(rays, [(2**i) * x for x in shapes]))
-            )
-        return embedded_rays
+    @profile_method(verbose=VERBOSE)
+    def condition(self, feat, rays_embeddings):
+        conditioned_features = [
+            prompter(rearrange(feature, "b h w c -> b (h w) c"), rays_embeddings)
+            for prompter, feature in zip(self.prompt_camera, feat)
+        ]
+        return conditioned_features
 
-    def decode_depth(self, latents_16, rays, shapes):
-        latents = latents_16
-        out_features, depths, confidences = [], [], []
-        for i, (up, layers, rays_embedding) in enumerate(
-            zip(self.ups, self.process_layers, rays)
-        ):
-            for layer in layers:
-                latents = layer(latents, pos_embed=rays_embedding)
-            latents = up(
-                rearrange(
-                    latents + rays_embedding,
-                    "b (h w) c -> b c h w",
-                    h=shapes[0] * int(2**i),
-                    w=shapes[1] * int(2**i),
-                ).contiguous()
-            )
-            out = rearrange(
-                latents,
-                "b (h w) c -> b h w c",
-                h=shapes[0] * int(2 ** (1 + i)),
-                w=shapes[1] * int(2 ** (1 + i)),
-            )
-            out_features.append(out)
+    @profile_method(verbose=VERBOSE)
+    def process(self, features_list, rays_embeddings):
+        conditioned_features = self.condition(features_list, rays_embeddings)
+        init_latents = self.to_latents(conditioned_features[0])
+        init_latents = rearrange(
+            init_latents, "b (h w) c -> b c h w", h=self.shapes[0], w=self.shapes[1]
+        ).contiguous()
+        conditioned_features = [
+            rearrange(
+                x, "b (h w) c -> b c h w", h=self.shapes[0], w=self.shapes[1]
+            ).contiguous()
+            for x in conditioned_features
+        ]
+        latents = init_latents
 
+        out_features = []
+        for i, up in enumerate(self.ups):
+            latents = latents + self.process_features[i](conditioned_features[i + 1])
+            latents = up(latents)
+            out_features.append(latents)
+
+        return out_features, init_latents
+
+    @profile_method(verbose=VERBOSE)
+    def depth_proj(self, out_features):
+        h_out, w_out = out_features[-1].shape[-2:]
         # aggregate output and project to depth
-        for i, (layer, features) in enumerate(
-            zip(self.depth_mlp[::-1], out_features[::-1])
-        ):
-            out_depth_features = layer(features).permute(0, 3, 1, 2)
+        for i, (layer, features) in enumerate(zip(self.depth_mlp, out_features)):
+            out_depth_features = layer(features.permute(0, 2, 3, 1)).permute(0, 3, 1, 2)
             out_depth_features = F.interpolate(
-                out_depth_features, size=self.original_shapes, mode="bilinear"
+                out_depth_features,
+                size=(h_out, w_out),
+                mode="bilinear",
+                align_corners=True,
             )
-            depths.append(out_depth_features)
-        logdepth = self.to_depth(torch.cat(depths, dim=1))
+            if i == len(self.depth_mlp) - 1:
+                logdepth = out_depth_features
 
-        # aggregate output and project to confidences
-        for i, (layer, features) in enumerate(
-            zip(self.confidence_mlp[::-1], out_features[::-1])
-        ):
-            out_conf_features = layer(features).permute(0, 3, 1, 2)
-            out_conf_features = F.interpolate(
-                out_conf_features, size=self.original_shapes, mode="bilinear"
-            )
-            confidences.append(out_conf_features)
-        confidence = self.to_confidence(torch.cat(confidences, dim=1))
+        logdepth = self.to_depth_lr(logdepth)
+        logdepth = F.interpolate(
+            logdepth, size=self.original_shapes, mode="bilinear", align_corners=True
+        )
+        logdepth = self.to_depth_hr(logdepth)
+        return logdepth
 
-        # apply sigmoid ot get conf in [0, 1]
-        confidence = torch.sigmoid(confidence)
+    @profile_method(verbose=VERBOSE)
+    def confidence_proj(self, out_features):
+        highres_features = out_features[-1].permute(0, 2, 3, 1)
+        confidence = self.confidence_mlp(highres_features).permute(0, 3, 1, 2)
+        confidence = self.to_confidence_lr(confidence)
+        confidence = F.interpolate(
+            confidence, size=self.original_shapes, mode="bilinear", align_corners=True
+        )
+        confidence = self.to_confidence_hr(confidence)
+        return confidence
 
+    @profile_method(verbose=VERBOSE)
+    def decode(self, out_features):
+        logdepth = self.depth_proj(out_features)
+        confidence = self.confidence_proj(out_features)
         return logdepth, confidence
 
-    def init_latents(self, features, shapes):
-        # Generate latents with init as pooled features
-        features_channels = torch.cat(features, dim=-1)
-        features_16 = self.features_channel_cat(features_channels)
-        latents_16 = features_16 + self.to_latents(
-            flat_interpolate(features_16, old=self.shapes, new=shapes, antialias=False)
-        )
-        return latents_16
-
+    @profile_method(verbose=VERBOSE)
     def forward(
-        self, features: torch.Tensor, rays_hr: torch.Tensor, pos_embed, level_embed
-    ) -> torch.Tensor:
-        B = features.shape[0]
-        features = features.unbind(dim=-1)
-        shapes = self.shapes
+        self,
+        features: list[torch.Tensor],
+        rays_hr: torch.Tensor,
+        pos_embed,
+        level_embed,
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        B = features[0].shape[0]
 
-        # camera_embedding
-        rays_embeddings = self.project_rays(rays_hr, shapes)
+        rays_embeddings = self.embed_rays(rays_hr)
+        features, proj_latents_16 = self.process(features, rays_embeddings)
+        logdepth, logconf = self.decode(features)
 
-        # Init latents
-        init_latents_16 = self.init_latents(features, shapes)
-
-        # Aggregate features: F -> D
-        latents_16 = self.aggregate_16(
-            init_latents_16,
-            context=torch.cat(features, dim=1),
-            pos_embed_context=pos_embed + level_embed,
-        )
-
-        # Aggregate camera: D -> D|E
-        latents_16 = self.prompt_camera(latents_16, context=rays_embeddings[0])
-
-        # Decode depth
-        logdepth, confidence = self.decode_depth(latents_16, rays_embeddings, shapes)
-
-        return logdepth, confidence, latents_16
+        return logdepth, logconf, proj_latents_16
 
 
 class Decoder(nn.Module):
@@ -351,6 +353,7 @@ class Decoder(nn.Module):
         super().__init__()
         self.build(config)
         self.apply(self._init_weights)
+        self.test_gt_camera = False
 
     def _init_weights(self, m):
         if isinstance(m, nn.Linear):
@@ -367,109 +370,72 @@ class Decoder(nn.Module):
             if m.weight is not None:
                 nn.init.constant_(m.weight, 1.0)
 
-    def get_adapted_features(self, features_flat, splits):
-        features_flat_cat = torch.cat(features_flat, dim=-1)
-        features_projected = self.input_adapter(
-            features_flat_cat, splits
-        )  # list [b hw c] shapes
-        features = torch.chunk(features_projected, splits.shape[0], dim=-1)
-        return features
-
     def run_camera(self, cls_tokens, features, pos_embed, original_shapes, rays_gt):
-        # get cls tokens projections
-        cls_tokens_splits = torch.tensor(
-            [x.shape[-1] for x in cls_tokens],
-            device=features.device,
-            requires_grad=False,
-            dtype=features.dtype,
-        )
-        cls_tokens = torch.cat(cls_tokens, dim=-1)
-        cls_tokens = self.camera_token_adapter(cls_tokens, cls_tokens_splits)
-        cls_tokens = torch.cat(
-            torch.chunk(cls_tokens, cls_tokens_splits.shape[0], dim=-1), dim=1
-        )
+        H, W = original_shapes
 
         # camera layer
         intrinsics = self.camera_layer(
             features=features, cls_tokens=cls_tokens, pos_embed=pos_embed
         )
-        intrinsics[:, 0, 0] = max(original_shapes) / 2 * intrinsics[:, 0, 0]
-        intrinsics[:, 1, 1] = max(original_shapes) / 2 * intrinsics[:, 1, 1]
-        intrinsics[:, 0, 2] = intrinsics[:, 0, 2] * original_shapes[1]
-        intrinsics[:, 1, 2] = intrinsics[:, 1, 2] * original_shapes[0]
+        B, N = intrinsics.shape
+        device = intrinsics.device
+        dtype = intrinsics.dtype
 
-        rays = (
-            rays_gt
-            if rays_gt is not None
-            else generate_rays(intrinsics, original_shapes)[0]
+        id_coords = coords_grid(B, H, W, device=features.device, homogeneous=True)
+        intrinsics_matrix_inverse = torch.eye(3, device=device, dtype=dtype).repeat(
+            B, 1, 1
         )
-        return intrinsics, rays
+        intrinsics_matrix_inverse[:, 0, 0] = 1.0 / intrinsics[:, 0]
+        intrinsics_matrix_inverse[:, 1, 1] = 1.0 / intrinsics[:, 1]
+        intrinsics_matrix_inverse[:, 0, 2] = -intrinsics[:, 2] / intrinsics[:, 0]
+        intrinsics_matrix_inverse[:, 1, 2] = -intrinsics[:, 3] / intrinsics[:, 1]
 
-    def run_global(self, cls_tokens, features, rays):
-        # get cls tokens projections
-        cls_tokens_splits = torch.tensor(
-            [x.shape[-1] for x in cls_tokens],
-            device=features.device,
-            requires_grad=False,
-            dtype=torch.float32,
+        intrinsics_matrix = torch.eye(3, device=device, dtype=dtype).repeat(B, 1, 1)
+        intrinsics_matrix[:, 0, 0] = intrinsics[:, 0]
+        intrinsics_matrix[:, 1, 1] = intrinsics[:, 1]
+        intrinsics_matrix[:, 0, 2] = intrinsics[:, 2]
+        intrinsics_matrix[:, 1, 2] = intrinsics[:, 3]
+
+        rays_pred = intrinsics_matrix_inverse @ id_coords.reshape(B, 3, -1)
+        rays_pred = rays_pred.reshape(B, 3, H, W)
+        rays_pred = rays_pred / torch.norm(rays_pred, dim=1, keepdim=True).clamp(
+            min=1e-5
         )
-        cls_tokens = torch.cat(cls_tokens, dim=-1)
-        cls_tokens = self.global_token_adapter(cls_tokens, cls_tokens_splits)
-        cls_tokens = torch.cat(
-            torch.chunk(cls_tokens, cls_tokens_splits.shape[0], dim=-1), dim=1
-        )
+        rays_pred = rearrange(rays_pred, "b c h w -> b (h w) c")
 
-        scale, shift = self.global_layer(
-            features=features, rays=rays, cls_tokens=cls_tokens
-        )
+        if self.training:  # legacy
+            prob = -1.0  # 0.8 * (1 - tanh(self.steps / 100000)) + 0.2
+            where_use_gt_rays = torch.rand(B, 1, 1, device=device, dtype=dtype) < prob
+            where_use_gt_rays = where_use_gt_rays.int()
+            rays = rays_gt * where_use_gt_rays + rays_pred * (1 - where_use_gt_rays)
+        elif rays_gt is not None:
+            rays = rays_gt
+        else:
+            rays = rays_pred
 
-        return scale, shift
+        return intrinsics_matrix, rays
 
-    def forward(self, inputs, image_metas) -> torch.Tensor:
+    @profile_method(verbose=VERBOSE)
+    def forward(
+        self,
+        inputs: dict[str, torch.Tensor],
+        image_metas: list[dict[str, torch.Tensor]],
+    ) -> dict[str, torch.Tensor]:
         B, C, H, W = inputs["image"].shape
         device = inputs["image"].device
-        dtype = inputs["image"].dtype
+        dtype = inputs["features"][0].dtype
 
         # get features in b n d format
-        # level shapes, the shape per level, for swin like [[128, 128], [64, 64],...], for vit [[32,32]] -> mult times resolutions
-        level_shapes = sorted(
-            list(set([tuple([x.shape[1], x.shape[2]]) for x in inputs["features"]]))
-        )[::-1]
-        if len(level_shapes) == 1:
-            level_shapes = level_shapes * self.num_resolutions
-        input_shapes = [
-            level_shapes[i]
-            for i, (start, end) in enumerate(self.slices_encoder)
-            for _ in range(end - start)
-        ]
-        common_shape = level_shapes[-2]
+        common_shape = inputs["features"][0].shape[1:3]
 
         # input shapes repeat shapes for each level, times the amount of the layers:
-        features_flat = [
-            flat_interpolate(
-                rearrange(x, "b h w c -> b (h w) c"), old=input_shape, new=common_shape
-            )
-            for x, input_shape in zip(inputs["features"], input_shapes)
-        ]
-        features_splits = torch.tensor(
-            [x.shape[-1] for x in features_flat],
-            device=device,
-            requires_grad=False,
-            dtype=torch.float32,
-        )
-        features = self.get_adapted_features(features_flat, features_splits)
-        features = torch.stack(features, dim=-1)
+        features = self.input_adapter(inputs["features"])
 
         # positional embeddings, spatial and level
-        level_embed = torch.cat(
-            [
-                self.level_embed_layer(self.level_embeds)[i : i + 1]
-                .unsqueeze(0)
-                .repeat(B, common_shape[0] * common_shape[1], 1)
-                for i in range(self.num_resolutions)
-            ],
-            dim=1,
+        level_embed = self.level_embeds.repeat(
+            B, common_shape[0] * common_shape[1], 1, 1
         )
+        level_embed = rearrange(level_embed, "b n l d -> b (n l) d")
         dummy_tensor = torch.zeros(
             B, 1, common_shape[0], common_shape[1], device=device, requires_grad=False
         )
@@ -478,48 +444,36 @@ class Decoder(nn.Module):
             1, self.num_resolutions, 1
         )
 
-        self.camera_layer.set_shapes(common_shape)
-        intrinsics, rays = self.run_camera(
-            inputs["camera_tokens"],
-            features=features,
-            pos_embed=pos_embed + level_embed,
-            original_shapes=(H, W),
-            rays_gt=inputs.get("rays"),
-        )
+        # get cls tokens projections
+        camera_tokens = inputs["tokens"]
+        camera_tokens = self.camera_token_adapter(camera_tokens)
+        self.camera_layer.set_shapes((H, W))
 
-        self.global_layer.set_shapes(common_shape)
-        self.global_layer.set_original_shapes((H, W))
-        scale, shift = self.run_global(
-            inputs["global_tokens"], features=features, rays=rays
+        intrinsics, rays = self.run_camera(
+            torch.cat(camera_tokens, dim=1),
+            features=torch.stack(features, dim=-1).detach(),
+            pos_embed=(pos_embed + level_embed).detach(),
+            original_shapes=(H, W),
+            rays_gt=inputs.get("rays", None),
         )
 
         # run bulk of the model
         self.depth_layer.set_shapes(common_shape)
         self.depth_layer.set_original_shapes((H, W))
-        logdepth, confidence, depth_features = self.depth_layer(
+        logdepth, logconfidence, depth_features = self.depth_layer(
             features=features,
             rays_hr=rays,
             pos_embed=pos_embed,
             level_embed=level_embed,
         )
-        logdepth = logdepth.to(torch.float32, non_blocking=True)
 
-        # norm in log space, why performs better?
-        shapes = [int(x) for x in logdepth.shape[-2:]]
-        depth_normalized = F.layer_norm(logdepth, shapes).exp()
-
-        depth = (
-            depth_normalized + shift
-        ) * scale  # shift is scale invariant if we do (x + mu) * sigma
-        depth = F.softplus(depth, beta=10.0).to(dtype, non_blocking=True)
-
-        outputs = {
-            "depth": depth,
-            "confidence": confidence,
+        return {
+            "radius": torch.exp(logdepth.clip(min=-8.0, max=8.0) + 2.0),
             "depth_features": depth_features,
-            "K": intrinsics,
+            "confidence": torch.exp(logconfidence.clip(min=-8.0, max=8.0)),
+            "intrinsics": intrinsics,
+            "rays": rays,
         }
-        return outputs
 
     @torch.jit.ignore
     def no_weight_decay_keywords(self):
@@ -532,14 +486,25 @@ class Decoder(nn.Module):
         num_heads = config["model"]["num_heads"]
         dropout = config["model"]["pixel_decoder"]["dropout"]
         depths_encoder = config["model"]["pixel_encoder"]["depths"]
+        layer_scale = config["model"]["layer_scale"]
+
         depth = config["model"]["pixel_decoder"]["depths"]
-        depths_encoder = config["model"]["pixel_encoder"]["depths"]
         self.downsample = 4
+        depths_encoder = config["model"]["pixel_encoder"]["depths"]
+
         self.num_resolutions = len(depths_encoder)
+        self.test_fixed_camera = False
+
+        out_dim = config["model"]["pixel_decoder"]["out_dim"]
+        kernel_size = config["model"]["pixel_decoder"].get("kernel_size", 7)
 
         self.slices_encoder = list(zip([d - 1 for d in depths_encoder], depths_encoder))
-        cls_token_input_dims = [input_dims[i] for i in [-1, -2, -3, -4]]
         input_dims = [input_dims[d - 1] for d in depths_encoder]
+
+        # # adapt from encoder features, just project
+        camera_dims = input_dims
+        self.input_adapter = ListAdapter(input_dims, hidden_dim)
+        self.camera_token_adapter = ListAdapter(camera_dims, hidden_dim)
 
         # # camera layer
         self.camera_layer = CameraHead(
@@ -547,21 +512,8 @@ class Decoder(nn.Module):
             num_heads=num_heads,
             expansion=expansion,
             dropout=dropout,
+            layer_scale=layer_scale,
         )
-
-        # # scale shift layer
-        self.global_layer = GlobalHead(
-            hidden_dim=hidden_dim,
-            camera_dim=96,
-            num_heads=num_heads,
-            expansion=expansion,
-            dropout=dropout,
-        )
-
-        # # adapt from encoder features, just project
-        self.input_adapter = ListAdapter(input_dims, hidden_dim)
-        self.camera_token_adapter = ListAdapter(cls_token_input_dims, hidden_dim)
-        self.global_token_adapter = ListAdapter(cls_token_input_dims[:2], hidden_dim)
 
         self.depth_layer = DepthHead(
             hidden_dim=hidden_dim,
@@ -571,15 +523,16 @@ class Decoder(nn.Module):
             dropout=dropout,
             camera_dim=96,
             num_resolutions=self.num_resolutions,
+            layer_scale=layer_scale,
+            out_dim=out_dim,
+            kernel_size=kernel_size,
+            num_prompt_blocks=1,
+            use_norm=False,
         )
-
         self.pos_embed = PositionEmbeddingSine(hidden_dim // 2, normalize=True)
         self.level_embeds = nn.Parameter(
-            torch.randn(len(input_dims), hidden_dim), requires_grad=True
-        )
-        self.level_embed_layer = nn.Sequential(
-            nn.Linear(hidden_dim, hidden_dim),
-            nn.GELU(),
-            nn.Linear(hidden_dim, hidden_dim),
-            nn.LayerNorm(hidden_dim),
+            orthonormal_init(len(input_dims), hidden_dim).reshape(
+                1, 1, len(input_dims), hidden_dim
+            ),
+            requires_grad=False,
         )

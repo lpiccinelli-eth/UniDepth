@@ -10,8 +10,9 @@
 
 import logging
 
+import torch
 import torch.nn as nn
-from torch import Tensor
+import torch.nn.functional as F
 
 logger = logging.getLogger("dinov2")
 
@@ -23,6 +24,8 @@ try:
 except ImportError:
     logger.warning("xFormers not available")
     XFORMERS_AVAILABLE = False
+
+XFORMERS_AVAILABLE = XFORMERS_AVAILABLE and torch.cuda.is_available()
 
 
 class Attention(nn.Module):
@@ -45,29 +48,25 @@ class Attention(nn.Module):
         self.proj = nn.Linear(dim, dim, bias=proj_bias)
         self.proj_drop = nn.Dropout(proj_drop)
 
-    def forward(self, x: Tensor) -> Tensor:
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         B, N, C = x.shape
         qkv = (
             self.qkv(x)
             .reshape(B, N, 3, self.num_heads, C // self.num_heads)
             .permute(2, 0, 3, 1, 4)
         )
-
-        q, k, v = qkv[0] * self.scale, qkv[1], qkv[2]
-        attn = q @ k.transpose(-2, -1)
-
-        attn = attn.softmax(dim=-1)
-        attn = self.attn_drop(attn)
-
-        x = (attn @ v).transpose(1, 2).reshape(B, N, C)
+        x = F.scaled_dot_product_attention(qkv[0], qkv[1], qkv[2])
+        x = x.transpose(1, 2).reshape(B, N, C)
         x = self.proj(x)
         x = self.proj_drop(x)
         return x
 
 
 class MemEffAttention(Attention):
-    def forward(self, x: Tensor, attn_bias=None) -> Tensor:
-        if not XFORMERS_AVAILABLE:
+    def forward(self, x: torch.Tensor, attn_bias=None) -> torch.Tensor:
+        if (
+            not XFORMERS_AVAILABLE
+        ):  # new pytorch have good attn efficient, no need for xformers
             assert attn_bias is None, "xFormers is required for nested tensors usage"
             return super().forward(x)
 

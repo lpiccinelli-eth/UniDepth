@@ -20,9 +20,10 @@ from unidepth.utils.constants import (IMAGENET_DATASET_MEAN,
 from unidepth.utils.distributed import is_main_process
 from unidepth.utils.geometric import (generate_rays,
                                       spherical_zbuffer_to_euclidean)
-from unidepth.utils.misc import get_params, match_gt
+from unidepth.utils.misc import (get_params, match_gt, match_intrinsics,
+                                 profile_method)
 
-MAP_BACKBONES = {"ViTL14": "vitl14", "ConvNextL": "cnvnxtl"}
+VERBOSE = False
 
 
 # inference helpers
@@ -111,10 +112,74 @@ class UniDepthV1(
         self.build_losses(config)
         self.eps = eps
 
+    @profile_method(verbose=VERBOSE)
+    def forward_train(self, inputs, image_metas):
+        inputs, outputs = self.encode_decode(inputs, image_metas)
+        losses = self.compute_losses(outputs, inputs, image_metas)
+        return outputs, losses
+
+    @profile_method(verbose=VERBOSE)
+    def forward_test(self, inputs, image_metas):
+        inputs, outputs = self.encode_decode(inputs, image_metas)
+        depth_gt = inputs["depth"]
+        test_outputs = {}
+        test_outputs["depth"] = match_gt(
+            outputs["depth"], depth_gt, padding1=inputs["paddings"], padding2=None
+        )
+        test_outputs["points"] = match_gt(
+            outputs["points"], depth_gt, padding1=inputs["paddings"], padding2=None
+        )
+        test_outputs["confidence"] = match_gt(
+            outputs["confidence"], depth_gt, padding1=inputs["paddings"], padding2=None
+        )
+        test_outputs["rays"] = match_gt(
+            outputs["rays"], depth_gt, padding1=inputs["paddings"], padding2=None
+        )
+        test_outputs["rays"] = outputs["rays"] / torch.norm(
+            outputs["rays"], dim=1, keepdim=True
+        ).clip(min=1e-5)
+        test_outputs["intrinsics"] = match_intrinsics(
+            outputs["intrinsics"],
+            inputs["image"],
+            depth_gt,
+            padding1=inputs["paddings"],
+            padding2=None,
+        )
+        return test_outputs
+
     def forward(self, inputs, image_metas):
+        if self.training:
+            return self.forward_train(inputs, image_metas)
+        else:
+            return self.forward_test(inputs, image_metas)
+
+    def encode_decode(self, inputs, image_metas):
         rgbs = inputs["image"]
         B, _, H, W = rgbs.shape
         cameras = inputs["camera"]
+
+        # shortcut eval should avoid errors
+        if len(image_metas) and "paddings" in image_metas[0]:
+            inputs["paddings"] = torch.tensor(
+                [image_meta["paddings"] for image_meta in image_metas],
+                device=self.device,
+            )[
+                ..., [0, 2, 1, 3]
+            ]  # lrtb
+            inputs["depth_paddings"] = torch.tensor(
+                [image_meta["depth_paddings"] for image_meta in image_metas],
+                device=self.device,
+            )
+            if (
+                self.training
+            ):  # at inference we do not have image paddings on top of depth ones (we have not "crop" on gt in ContextCrop)
+                inputs["depth_paddings"] = inputs["depth_paddings"] + inputs["paddings"]
+
+        # Get camera rays for supervision, all in unit sphere
+        if inputs.get("camera", None) is not None:
+            inputs["rays"] = rearrange(
+                inputs["camera"].get_rays(shapes=(B, H, W)), "b c h w -> b (h w) c"
+            )
 
         # Encode
         encoder_outputs, cls_tokens = self.pixel_encoder(rgbs)
@@ -125,11 +190,6 @@ class UniDepthV1(
             ]
         inputs["encoder_outputs"] = encoder_outputs
         inputs["cls_tokens"] = cls_tokens
-
-        # Get camera rays for supervision, all in unit sphere
-        inputs["rays"] = rearrange(
-            cameras.get_rays(shapes=(B, H, W)), "b c h w -> b (h w) c"
-        )
 
         # Decode
         pred_intrinsics, predictions, depth_features = self.pixel_decoder(inputs, {})
@@ -152,18 +212,6 @@ class UniDepthV1(
         # You may want to use inputs["angles"] if available?
         pred_angles = rearrange(pred_angles, "b (h w) c -> b c h w", h=H, w=W)
 
-        # reshape to match GT as paddings and shape
-        if not self.training:
-            depth_gt = inputs["depth"]
-            image_paddings = [image_metas[0]["paddings"]]
-            depth_paddings = [image_metas[0]["depth_paddings"]]
-            predictions = match_gt(
-                predictions, depth_gt, padding1=image_paddings, padding2=depth_paddings
-            )
-            pred_angles = match_gt(
-                pred_angles, depth_gt, padding1=image_paddings, padding2=depth_paddings
-            )
-
         points_3d = torch.cat((pred_angles, predictions), dim=1)
         points_3d = spherical_zbuffer_to_euclidean(
             points_3d.permute(0, 2, 3, 1)
@@ -179,11 +227,13 @@ class UniDepthV1(
             "cond_features": depth_features,
         }
         self.pixel_decoder.test_fixed_camera = False
-        losses = self.compute_losses(outputs, inputs, image_metas)
-
-        return outputs, losses
+        outputs["rays"] = rearrange(outputs["rays"], "b (h w) c -> b c h w", h=H, w=W)
+        if "rays" in inputs:
+            inputs["rays"] = rearrange(inputs["rays"], "b (h w) c -> b c h w", h=H, w=W)
+        return inputs, outputs
 
     def compute_losses(self, outputs, inputs, image_metas):
+        B, _, H, W = inputs["image"].shape
         losses = {"opt": {}, "stat": {}}
         if (
             not self.training
@@ -192,7 +242,9 @@ class UniDepthV1(
         losses_to_be_computed = list(self.losses.keys())
 
         # depth loss
-        si = torch.tensor([x.get("si", False) for x in image_metas], device=self.device)
+        si = torch.tensor(
+            [x.get("si", False) for x in image_metas], device=self.device
+        ).reshape(B)
         loss = self.losses["depth"]
         depth_losses = loss(
             outputs["depth"],
@@ -214,7 +266,7 @@ class UniDepthV1(
         # invariance loss
         flips = torch.tensor(
             [x.get("flip", False) for x in image_metas], device=self.device
-        ).T
+        ).reshape(B)
         loss = self.losses["invariance"]
         invariance_losses = loss(
             outputs["cond_features"],
@@ -392,7 +444,7 @@ class UniDepthV1(
 
     def build_losses(self, config):
         self.losses = {}
-        for loss_name, loss_config in config["training"]["losses"].items():
+        for loss_name, loss_config in config["training"].get("losses", {}).items():
             mod = importlib.import_module("unidepth.ops.losses")
             loss_factory = getattr(mod, loss_config["name"])
             self.losses[loss_name] = loss_factory.build(loss_config)
