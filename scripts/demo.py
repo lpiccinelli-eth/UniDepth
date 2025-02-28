@@ -2,7 +2,7 @@ import numpy as np
 import torch
 from PIL import Image
 
-from unidepth.models import UniDepthV1, UniDepthV2
+from unidepth.models import UniDepthV1, UniDepthV2, UniDepthV2old
 from unidepth.utils import colorize, image_grid
 from unidepth.utils.camera import Pinhole
 
@@ -14,7 +14,7 @@ def demo(model):
     camera = Pinhole(K=intrinsics_torch.unsqueeze(0))
     
     # infer method of V1 uses still the K matrix as input
-    if isinstance(model, UniDepthV1): 
+    if isinstance(model, (UniDepthV2old, UniDepthV1)): 
         camera = camera.K.squeeze(0)
 
     # predict
@@ -46,6 +46,9 @@ if __name__ == "__main__":
     type_ = "l"  # available types: s, b, l
     name = f"unidepth-v2-vit{type_}14"
     model = UniDepthV2.from_pretrained(f"lpiccinelli/{name}")
+
+    # name = f"unidepth-v2old-vit{type_}14"
+    # model = UniDepthV2old.from_pretrained(f"lpiccinelli/{name}")
 
     # set resolution level (only V2)
     # model.resolution_level = 9

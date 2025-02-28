@@ -384,7 +384,7 @@ class UniDepthV2(
         dict_model = torch.load(model_file, map_location=device, weights_only=False)
         if "model" in dict_model:
             dict_model = dict_model["model"]
-        dict_model = {k.replace("module.", ""): v for k, v in dict_model.items()}
+        dict_model = deepcopy({k.replace("module.", ""): v for k, v in dict_model.items()})
         info = self.load_state_dict(dict_model, strict=False)
         if is_main_process():
             print(
@@ -415,8 +415,6 @@ class UniDepthV2(
         return next(self.parameters()).device
 
     def build(self, config):
-        import importlib
-
         mod = importlib.import_module("unidepth.models.encoder")
         pixel_encoder_factory = getattr(mod, config["model"]["pixel_encoder"]["name"])
         pixel_encoder_config = {

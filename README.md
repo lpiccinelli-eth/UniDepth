@@ -175,6 +175,15 @@ The available models are the following:
         <td>ViT-L</td>
         <td><a href="https://huggingface.co/lpiccinelli/unidepth-v1-vitl14">unidepth-v1-vitl14</a></td>
     </tr>
+    <tr>
+        <td rowspan="3"><b>UnidepthV2old</b></td>
+        <td>ViT-S</td>
+        <td><a href="https://huggingface.co/lpiccinelli/unidepth-v2old-vits14">unidepth-v2-vits14</a></td>
+    </tr>
+    <tr>
+        <td>ViT-L</td>
+        <td><a href="https://huggingface.co/lpiccinelli/unidepth-v2old-vitl14">unidepth-v2-vitl14</a></td>
+    </tr>
     <hr style="border: 2px solid black;">
     <tr>
         <td rowspan="3"><b>UnidepthV2</b></td>
@@ -195,7 +204,7 @@ Please visit [Hugging Face](https://huggingface.co/lpiccinelli) or click on the 
 You can load UniDepth as the following, with `name` variable matching the table above:
 
 ```python
-from unidepth.models import UniDepthV1, UniDepthV2
+from unidepth.models import UniDepthV1, UniDepthV2, UnidepthV2old
 
 model_v1 = UniDepthV1.from_pretrained(f"lpiccinelli/{name}")
 model_v2 = UniDepthV2.from_pretrained(f"lpiccinelli/{name}")
@@ -222,6 +231,8 @@ To summarize the main differences are:
 - Confidence output.
 - Faster inference.
 - ONNX support.
+
+UnidepthV2old is actually V1 version updated to compensate for wave artifacts due to wrong LiDAR accumulation.
 
 
 ## Training
