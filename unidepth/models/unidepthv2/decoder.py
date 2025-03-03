@@ -13,7 +13,6 @@ from unidepth.layers import (MLP, AttentionBlock, AttentionLayer,
                              PositionEmbeddingSine, ResUpsampleBil)
 from unidepth.utils.coordinate import coords_grid
 from unidepth.utils.geometric import flat_interpolate
-from unidepth.utils.misc import profile_method
 from unidepth.utils.positional_embedding import generate_fourier_features
 
 VERBOSE = False
@@ -43,7 +42,6 @@ class ListAdapter(nn.Module):
         for input_dim in input_dims:
             self.input_adapters.append(nn.Linear(input_dim, hidden_dim))
 
-    @profile_method(verbose=VERBOSE)
     def forward(self, xs: torch.Tensor) -> list[torch.Tensor]:
         outs = [self.input_adapters[i](x) for i, x in enumerate(xs)]
         return outs
@@ -102,7 +100,6 @@ class CameraHead(nn.Module):
         intrinsics = correction_tensor.unsqueeze(0) * intrinsics
         return intrinsics
 
-    @profile_method(verbose=VERBOSE)
     def forward(self, features, cls_tokens, pos_embed) -> torch.Tensor:
         features = features.unbind(dim=-1)
         tokens = self.project(cls_tokens)
@@ -236,7 +233,6 @@ class DepthHead(nn.Module):
     def set_shapes(self, shapes: tuple[int, int]):
         self.shapes = shapes
 
-    @profile_method(verbose=VERBOSE)
     def embed_rays(self, rays):
         rays_embedding = flat_interpolate(
             rays, old=self.original_shapes, new=self.shapes, antialias=True
@@ -258,7 +254,6 @@ class DepthHead(nn.Module):
         )
         return rays_embedding
 
-    @profile_method(verbose=VERBOSE)
     def condition(self, feat, rays_embeddings):
         conditioned_features = [
             prompter(rearrange(feature, "b h w c -> b (h w) c"), rays_embeddings)
@@ -266,7 +261,6 @@ class DepthHead(nn.Module):
         ]
         return conditioned_features
 
-    @profile_method(verbose=VERBOSE)
     def process(self, features_list, rays_embeddings):
         conditioned_features = self.condition(features_list, rays_embeddings)
         init_latents = self.to_latents(conditioned_features[0])
@@ -289,7 +283,6 @@ class DepthHead(nn.Module):
 
         return out_features, init_latents
 
-    @profile_method(verbose=VERBOSE)
     def depth_proj(self, out_features):
         h_out, w_out = out_features[-1].shape[-2:]
         # aggregate output and project to depth
@@ -311,7 +304,6 @@ class DepthHead(nn.Module):
         logdepth = self.to_depth_hr(logdepth)
         return logdepth
 
-    @profile_method(verbose=VERBOSE)
     def confidence_proj(self, out_features):
         highres_features = out_features[-1].permute(0, 2, 3, 1)
         confidence = self.confidence_mlp(highres_features).permute(0, 3, 1, 2)
@@ -322,13 +314,11 @@ class DepthHead(nn.Module):
         confidence = self.to_confidence_hr(confidence)
         return confidence
 
-    @profile_method(verbose=VERBOSE)
     def decode(self, out_features):
         logdepth = self.depth_proj(out_features)
         confidence = self.confidence_proj(out_features)
         return logdepth, confidence
 
-    @profile_method(verbose=VERBOSE)
     def forward(
         self,
         features: list[torch.Tensor],
@@ -415,7 +405,6 @@ class Decoder(nn.Module):
 
         return intrinsics_matrix, rays
 
-    @profile_method(verbose=VERBOSE)
     def forward(
         self,
         inputs: dict[str, torch.Tensor],

@@ -12,9 +12,9 @@ def demo(model):
     rgb_torch = torch.from_numpy(rgb).permute(2, 0, 1)
     intrinsics_torch = torch.from_numpy(np.load("assets/demo/intrinsics.npy"))
     camera = Pinhole(K=intrinsics_torch.unsqueeze(0))
-    
-    # infer method of V1 uses still the K matrix as input
-    if isinstance(model, (UniDepthV2old, UniDepthV1)): 
+
+    # infer method of V1 and V2old uses still the K matrix as input
+    if isinstance(model, (UniDepthV2old, UniDepthV1)):
         camera = camera.K.squeeze(0)
 
     # predict

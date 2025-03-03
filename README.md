@@ -142,6 +142,16 @@ intrinsics_path = "assets/demo/intrinsics.npy"
 intrinsics = torch.from_numpy(np.load(intrinsics_path)) # 3 x 3
 
 predictions = model.infer(rgb, intrinsics)
+
+# For V2, we defined camera classes. If you pass a 3x3 tensor (as above)
+# it will convert to Pinhole, but you can pass classes from camera.py.
+# The `Camera` class is meant as an abstract, use only child classes as e.g.:
+from unidepth.utils.camera import Pinhole, Fisheye624
+
+camera = Pinhole(K=intrinsics) # pinhole 
+# fill in fisheye, params: fx,fy,cx,cy,d1,d2,d3,d4,d5,d6,t1,t2,s1,s2,s3,s4
+camera = Fisheye624(params=torch.tensor([...]))
+predictions = model.infer(rgb, camera)
 ```
 
 To use the forward method for your custom training, you should:  
@@ -176,15 +186,15 @@ The available models are the following:
         <td><a href="https://huggingface.co/lpiccinelli/unidepth-v1-vitl14">unidepth-v1-vitl14</a></td>
     </tr>
     <tr>
-        <td rowspan="3"><b>UnidepthV2old</b></td>
+        <td rowspan="2"><b>UnidepthV2old</b></td>
         <td>ViT-S</td>
-        <td><a href="https://huggingface.co/lpiccinelli/unidepth-v2old-vits14">unidepth-v2-vits14</a></td>
+        <td><a href="https://huggingface.co/lpiccinelli/unidepth-v2old-vits14">unidepth-v2old-vits14</a></td>
     </tr>
     <tr>
         <td>ViT-L</td>
-        <td><a href="https://huggingface.co/lpiccinelli/unidepth-v2old-vitl14">unidepth-v2-vitl14</a></td>
+        <td><a href="https://huggingface.co/lpiccinelli/unidepth-v2old-vitl14">unidepth-v2old-vitl14</a></td>
     </tr>
-    <hr style="border: 2px solid black;">
+    <hr style="border: 2px solid black;"><hr>
     <tr>
         <td rowspan="3"><b>UnidepthV2</b></td>
         <td>ViT-S</td>
@@ -231,6 +241,7 @@ To summarize the main differences are:
 - Confidence output.
 - Faster inference.
 - ONNX support.
+- New cameras support (see `camera.py`).
 
 UnidepthV2old is actually V1 version updated to compensate for wave artifacts due to wrong LiDAR accumulation.
 

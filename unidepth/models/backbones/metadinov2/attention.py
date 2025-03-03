@@ -27,6 +27,8 @@ except ImportError:
 
 XFORMERS_AVAILABLE = XFORMERS_AVAILABLE and torch.cuda.is_available()
 
+from unidepth.utils.misc import profile_method
+
 
 class Attention(nn.Module):
     def __init__(
@@ -64,9 +66,8 @@ class Attention(nn.Module):
 
 class MemEffAttention(Attention):
     def forward(self, x: torch.Tensor, attn_bias=None) -> torch.Tensor:
-        if (
-            not XFORMERS_AVAILABLE
-        ):  # new pytorch have good attn efficient, no need for xformers
+        if not XFORMERS_AVAILABLE or x.device.type == "cpu":
+            # new pytorch have good attn efficient, no need for xformers
             assert attn_bias is None, "xFormers is required for nested tensors usage"
             return super().forward(x)
 

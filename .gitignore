@@ -9,5 +9,7 @@ __pycache__/
 _*.sh
 _*.py
 
-# package
-unidepth.egg-info
+
+**/build/
+**/dist/
+**/*.egg-info/

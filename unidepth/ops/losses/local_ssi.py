@@ -1,3 +1,5 @@
+import warnings
+
 import numpy as np
 import torch
 import torch.nn as nn
@@ -240,15 +242,14 @@ class EdgeGuidedLocalSSI(nn.Module):
 
         try:
             from unidepth.ops.extract_patches import RandomPatchExtractor
-
             self.random_patch_extractor = RandomPatchExtractor()
-        except Exception as e:
+        except ImportError as e:
             self.random_patch_extractor = extract_patches
-            print(
+            warnings.warn(
                 "EdgeGuidedLocalSSI reverts to a non cuda-optimized operation, "
                 "you will experince large slowdown, "
-                "please install it: ",
-                "`cd ./unidepth/ops/extract_patches && bash compile.sh`",
+                "please install it: "
+                "`cd ./unidepth/ops/extract_patches && bash compile.sh`"
             )
 
     def get_edge(self, image, mask):

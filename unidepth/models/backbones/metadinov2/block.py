@@ -21,7 +21,6 @@ from .mlp import Mlp
 
 logger = logging.getLogger("dinov2")
 
-
 try:
     from xformers.ops import fmha, index_select_cat, scaled_index_add
 

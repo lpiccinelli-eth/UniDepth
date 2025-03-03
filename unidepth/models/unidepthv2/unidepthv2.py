@@ -4,6 +4,7 @@ Licensed under the CC-BY NC 4.0 license (http://creativecommons.org/licenses/by-
 """
 
 import importlib
+import warnings
 from copy import deepcopy
 from math import ceil
 
@@ -15,7 +16,7 @@ from einops import rearrange
 from huggingface_hub import PyTorchModelHubMixin
 
 from unidepth.models.unidepthv2.decoder import Decoder
-from unidepth.utils.camera import BatchCamera
+from unidepth.utils.camera import BatchCamera, Camera, Pinhole
 from unidepth.utils.constants import (IMAGENET_DATASET_MEAN,
                                       IMAGENET_DATASET_STD)
 from unidepth.utils.distributed import is_main_process
@@ -229,7 +230,8 @@ class UniDepthV2(
         )
         camera_losses = loss(
             outputs["confidence"].log(),
-            target=target_c.abs(),
+            target_gt=inputs["depth"],
+            taret_pred=outputs["depth"],
             mask=inputs["depth_mask"].clone(),
         )
         losses["opt"][loss.name + "_conf"] = loss.weight * camera_losses.mean()
@@ -243,7 +245,12 @@ class UniDepthV2(
 
     @torch.no_grad()
     @torch.autocast(device_type="cuda", enabled=True, dtype=torch.float16)
-    def infer(self, rgb: torch.Tensor, camera=None, normalize=True):
+    def infer(
+        self,
+        rgb: torch.Tensor,
+        camera: torch.Tensor | Camera | None = None,
+        normalize=True,
+    ):
         ratio_bounds = self.shape_constraints["ratio_bounds"]
         pixels_bounds = [
             self.shape_constraints["pixels_min"],
@@ -259,18 +266,22 @@ class UniDepthV2(
             new_upbound = (self.resolution_level + 1) * interval + pixels_bounds[0]
             pixels_bounds = (new_lowbound, new_upbound)
         else:
-            print("self.resolution_level not set, using default bounds")
+            warnings.warn("!! self.resolution_level not set, using default bounds !!")
 
         # houskeeping on cpu/cuda and batchify
         if rgb.ndim == 3:
             rgb = rgb.unsqueeze(0)
         if camera is not None:
+            if isinstance(camera, torch.Tensor):
+                assert (
+                    camera.shape[-1] == 3 and camera.shape[-2] == 3
+                ), "camera tensor should be of shape (..., 3, 3): assume pinhole"
+                camera = Pinhole(K=camera)
             camera = BatchCamera.from_camera(camera)
-        B, _, H, W = rgb.shape
-
-        rgb = rgb.to(self.device)
-        if camera is not None:
             camera = camera.to(self.device)
+
+        B, _, H, W = rgb.shape
+        rgb = rgb.to(self.device)
 
         # preprocess
         paddings, (padded_H, padded_W) = get_paddings((H, W), ratio_bounds)
@@ -384,7 +395,9 @@ class UniDepthV2(
         dict_model = torch.load(model_file, map_location=device, weights_only=False)
         if "model" in dict_model:
             dict_model = dict_model["model"]
-        dict_model = deepcopy({k.replace("module.", ""): v for k, v in dict_model.items()})
+        dict_model = deepcopy(
+            {k.replace("module.", ""): v for k, v in dict_model.items()}
+        )
         info = self.load_state_dict(dict_model, strict=False)
         if is_main_process():
             print(
