@@ -7,7 +7,7 @@ __pycache__/
 
 #scripts
 _*.sh
-_*.py
+___*.py
 
 
 **/build/
