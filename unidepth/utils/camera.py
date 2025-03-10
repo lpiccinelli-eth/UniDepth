@@ -28,6 +28,12 @@ def invert_pinhole(K):
 
 
 class Camera:
+    """
+    This is meant to be an abstract parent class, please use the others as actual cameras.
+    Pinhole, FIsheye624, MEI, OPENCV, EUCM, Spherical (Equirectangular).
+
+    """
+
     def __init__(self, params=None, K=None):
         if params.ndim == 1:
             params = params.unsqueeze(0)
@@ -225,7 +231,7 @@ class Pinhole(Camera):
         assert params is not None or K is not None
         if params is None:
             params = torch.stack(
-                [K[..., 0, 0], K[..., 1, 1], K[..., 0, 2], K[..., 1, 2]], dim=1
+                [K[..., 0, 0], K[..., 1, 1], K[..., 0, 2], K[..., 1, 2]], dim=-1
             )
         super().__init__(params=params, K=K)
 
@@ -401,6 +407,291 @@ class Spherical(Camera):
     @property
     def max_fov(self):
         return 2 * np.pi, 0.9 * np.pi  # avoid strong distortion on tops
+
+
+class OPENCV(Camera):
+    def __init__(self, params):
+        super().__init__(params=params, K=None)
+        self.use_radial = self.params[..., 4:10].abs().sum() > 1e-6
+        assert (
+            self.params[..., 7:10].abs().sum() == 0.0
+        ), "Do not support poly division model"
+        self.use_tangential = self.params[..., 10:12].abs().sum() > 1e-6
+        self.use_thin_prism = self.params[..., 12:].abs().sum() > 1e-6
+
+    @torch.autocast(device_type="cuda", enabled=False, dtype=torch.float32)
+    def project(self, xyz):
+        eps = 1e-9
+        B, _, H, W = xyz.shape
+        N = H * W
+        xyz = xyz.permute(0, 2, 3, 1).reshape(B, N, 3)
+
+        # Radial correction.
+        z = xyz[:, :, 2].reshape(B, N, 1)
+        z = torch.where(torch.abs(z) < eps, eps * torch.sign(z), z)
+        ab = xyz[:, :, :2] / z
+        r = torch.norm(ab, dim=-1, p=2, keepdim=True)
+        th = r
+
+        # Create powers of th (th^3, th^5, ...)
+        th_pow = torch.cat([torch.pow(th, 2 + i * 2) for i in range(3)], dim=-1)
+        distortion_coeffs_num = self.params[:, 4:7].reshape(B, 1, 3)
+        distortion_coeffs_den = self.params[:, 7:10].reshape(B, 1, 3)
+        th_num = 1 + torch.sum(th_pow * distortion_coeffs_num, dim=-1, keepdim=True)
+        th_den = 1 + torch.sum(th_pow * distortion_coeffs_den, dim=-1, keepdim=True)
+
+        xr_yr = ab * th_num / th_den
+        uv_dist = xr_yr
+
+        # Tangential correction.
+        p0 = self.params[..., -6].reshape(B, 1)
+        p1 = self.params[..., -5].reshape(B, 1)
+        xr = xr_yr[:, :, 0].reshape(B, N)
+        yr = xr_yr[:, :, 1].reshape(B, N)
+        xr_yr_sq = torch.square(xr_yr)
+        xr_sq = xr_yr_sq[:, :, 0].reshape(B, N)
+        yr_sq = xr_yr_sq[:, :, 1].reshape(B, N)
+        rd_sq = xr_sq + yr_sq
+        uv_dist_tu = uv_dist[:, :, 0] + (
+            (2.0 * xr_sq + rd_sq) * p0 + 2.0 * xr * yr * p1
+        )
+        uv_dist_tv = uv_dist[:, :, 1] + (
+            (2.0 * yr_sq + rd_sq) * p1 + 2.0 * xr * yr * p0
+        )
+        uv_dist = torch.stack(
+            [uv_dist_tu, uv_dist_tv], dim=-1
+        )  # Avoids in-place complaint.
+
+        # Thin Prism correction.
+        s0 = self.params[..., -4].reshape(B, 1)
+        s1 = self.params[..., -3].reshape(B, 1)
+        s2 = self.params[..., -2].reshape(B, 1)
+        s3 = self.params[..., -1].reshape(B, 1)
+        rd_4 = torch.square(rd_sq)
+        uv_dist[:, :, 0] = uv_dist[:, :, 0] + (s0 * rd_sq + s1 * rd_4)
+        uv_dist[:, :, 1] = uv_dist[:, :, 1] + (s2 * rd_sq + s3 * rd_4)
+
+        # Finally, apply standard terms: focal length and camera centers.
+        if self.params.shape[-1] == 15:
+            fx_fy = self.params[..., 0].reshape(B, 1, 1)
+            cx_cy = self.params[..., 1:3].reshape(B, 1, 2)
+        else:
+            fx_fy = self.params[..., 0:2].reshape(B, 1, 2)
+            cx_cy = self.params[..., 2:4].reshape(B, 1, 2)
+        result = uv_dist * fx_fy + cx_cy
+
+        result = result.reshape(B, H, W, 2).permute(0, 3, 1, 2)
+        invalid = (
+            (result[:, 0] < 0)
+            | (result[:, 0] > W)
+            | (result[:, 1] < 0)
+            | (result[:, 1] > H)
+        )
+        self.projection_mask = (~invalid).unsqueeze(1)
+        self.overlap_mask = self.mask_overlap_projection(result)
+
+        return result
+
+    @torch.autocast(device_type="cuda", enabled=False, dtype=torch.float32)
+    def unproject(self, uv, max_iters: int = 10):
+        eps = 1e-3
+        B, _, H, W = uv.shape
+        N = H * W
+        uv = uv.permute(0, 2, 3, 1).reshape(B, N, 2)
+
+        if self.params.shape[-1] == 15:
+            fx_fy = self.params[..., 0].reshape(B, 1, 1)
+            cx_cy = self.params[..., 1:3].reshape(B, 1, 2)
+        else:
+            fx_fy = self.params[..., 0:2].reshape(B, 1, 2)
+            cx_cy = self.params[..., 2:4].reshape(B, 1, 2)
+
+        uv_dist = (uv - cx_cy) / fx_fy
+
+        # Compute xr_yr using Newton's method.
+        xr_yr = uv_dist.clone()  # Initial guess.
+        max_iters_tanprism = (
+            max_iters if self.use_thin_prism or self.use_tangential else 0
+        )
+
+        for _ in range(max_iters_tanprism):
+            uv_dist_est = xr_yr.clone()
+            xr = xr_yr[..., 0].reshape(B, N)
+            yr = xr_yr[..., 1].reshape(B, N)
+            xr_yr_sq = torch.square(xr_yr)
+            xr_sq = xr_yr_sq[..., 0].reshape(B, N)
+            yr_sq = xr_yr_sq[..., 1].reshape(B, N)
+            rd_sq = xr_sq + yr_sq
+
+            if self.use_tangential:
+                # Tangential terms.
+                p0 = self.params[..., -6].reshape(B, 1)
+                p1 = self.params[..., -5].reshape(B, 1)
+                uv_dist_est[..., 0] = uv_dist_est[..., 0] + (
+                    (2.0 * xr_sq + rd_sq) * p0 + 2.0 * xr * yr * p1
+                )
+                uv_dist_est[..., 1] = uv_dist_est[..., 1] + (
+                    (2.0 * yr_sq + rd_sq) * p1 + 2.0 * xr * yr * p0
+                )
+
+            if self.use_thin_prism:
+                # Thin Prism terms.
+                s0 = self.params[..., -4].reshape(B, 1)
+                s1 = self.params[..., -3].reshape(B, 1)
+                s2 = self.params[..., -2].reshape(B, 1)
+                s3 = self.params[..., -1].reshape(B, 1)
+                rd_4 = torch.square(rd_sq)
+                uv_dist_est[:, :, 0] = uv_dist_est[:, :, 0] + (s0 * rd_sq + s1 * rd_4)
+                uv_dist_est[:, :, 1] = uv_dist_est[:, :, 1] + (s2 * rd_sq + s3 * rd_4)
+
+            # Compute the derivative of uv_dist w.r.t. xr_yr.
+            duv_dist_dxr_yr = uv.new_ones(B, N, 2, 2)
+
+            if self.use_tangential:
+                duv_dist_dxr_yr[..., 0, 0] = 1.0 + 6.0 * xr * p0 + 2.0 * yr * p1
+                offdiag = 2.0 * (xr * p1 + yr * p0)
+                duv_dist_dxr_yr[..., 0, 1] = offdiag
+                duv_dist_dxr_yr[..., 1, 0] = offdiag
+                duv_dist_dxr_yr[..., 1, 1] = 1.0 + 6.0 * yr * p1 + 2.0 * xr * p0
+
+            if self.use_thin_prism:
+                xr_yr_sq_norm = xr_sq + yr_sq
+                temp1 = 2.0 * (s0 + 2.0 * s1 * xr_yr_sq_norm)
+                duv_dist_dxr_yr[..., 0, 0] = duv_dist_dxr_yr[..., 0, 0] + (xr * temp1)
+                duv_dist_dxr_yr[..., 0, 1] = duv_dist_dxr_yr[..., 0, 1] + (yr * temp1)
+                temp2 = 2.0 * (s2 + 2.0 * s3 * xr_yr_sq_norm)
+                duv_dist_dxr_yr[..., 1, 0] = duv_dist_dxr_yr[..., 1, 0] + (xr * temp2)
+                duv_dist_dxr_yr[..., 1, 1] = duv_dist_dxr_yr[..., 1, 1] + (yr * temp2)
+
+            mat = duv_dist_dxr_yr.reshape(-1, 2, 2)
+            a = mat[:, 0, 0].reshape(-1, 1, 1)
+            b = mat[:, 0, 1].reshape(-1, 1, 1)
+            c = mat[:, 1, 0].reshape(-1, 1, 1)
+            d = mat[:, 1, 1].reshape(-1, 1, 1)
+            det = 1.0 / ((a * d) - (b * c))
+            top = torch.cat([d, -b], dim=-1)
+            bot = torch.cat([-c, a], dim=-1)
+            inv = det * torch.cat([top, bot], dim=-2)
+            inv = inv.reshape(B, N, 2, 2)
+            diff = uv_dist - uv_dist_est
+            a = inv[..., 0, 0]
+            b = inv[..., 0, 1]
+            c = inv[..., 1, 0]
+            d = inv[..., 1, 1]
+            e = diff[..., 0]
+            f = diff[..., 1]
+            step = torch.stack([a * e + b * f, c * e + d * f], dim=-1)
+            # Newton step.
+            xr_yr = xr_yr + step
+
+        # Compute theta using Newton's method.
+        xr_yr_norm = xr_yr.norm(p=2, dim=2).reshape(B, N, 1)
+        th = xr_yr_norm.clone()
+        max_iters_radial = max_iters if self.use_radial else 0
+        c = (
+            torch.tensor([2.0 * i + 3 for i in range(3)], device=self.device)
+            .reshape(1, 1, 3)
+            .repeat(B, 1, 1)
+        )
+        radial_params_num = self.params[..., 4:7].reshape(B, 1, 3)
+
+        # Trust region parameters
+        delta = torch.full((B, N, 1), 0.1, device=self.device)  # Initial trust radius
+        delta_max = torch.tensor(1.0, device=self.device)  # Maximum trust radius
+        eta = 0.1  # Acceptable reduction threshold
+
+        for i in range(max_iters_radial):
+            th_sq = th * th  # th^2
+            # Compute powers of th^2 up to th^(12)
+            theta_powers = torch.cat(
+                [th_sq ** (i + 1) for i in range(3)], dim=-1
+            )  # Shape: (B, N, 6)
+
+            # Compute th_radial: radial distortion model applied to th
+            th_radial = 1.0 + torch.sum(
+                theta_powers * radial_params_num, dim=-1, keepdim=True
+            )
+            th_radial = th_radial * th  # Multiply by th at the end
+
+            # Compute derivative dthd_th
+            dthd_th = 1.0 + torch.sum(
+                c * radial_params_num * theta_powers, dim=-1, keepdim=True
+            )
+            dthd_th = dthd_th  # Already includes derivative terms
+
+            # Compute residual
+            residual = th_radial - xr_yr_norm  # Shape: (B, N, 1)
+            residual_norm = torch.norm(residual, dim=2, keepdim=True)  # For each pixel
+
+            # Check for convergence
+            if torch.max(torch.abs(residual)) < eps:
+                break
+
+            # Avoid division by zero by adding a small epsilon
+            safe_dthd_th = dthd_th.clone()
+            zero_derivative_mask = dthd_th.abs() < eps
+            safe_dthd_th[zero_derivative_mask] = eps
+
+            # Compute Newton's step
+            step = -residual / safe_dthd_th
+
+            # Compute predicted reduction
+            predicted_reduction = -(residual * step).sum(dim=2, keepdim=True)
+
+            # Adjust step based on trust region
+            step_norm = torch.norm(step, dim=2, keepdim=True)
+            over_trust_mask = step_norm > delta
+
+            # Scale step if it exceeds trust radius
+            step_scaled = step.clone()
+            step_scaled[over_trust_mask] = step[over_trust_mask] * (
+                delta[over_trust_mask] / step_norm[over_trust_mask]
+            )
+
+            # Update theta
+            th_new = th + step_scaled
+
+            # Compute new residual
+            th_sq_new = th_new * th_new
+            theta_powers_new = torch.cat(
+                [th_sq_new ** (j + 1) for j in range(3)], dim=-1
+            )
+            th_radial_new = 1.0 + torch.sum(
+                theta_powers_new * radial_params_num, dim=-1, keepdim=True
+            )
+            th_radial_new = th_radial_new * th_new
+            residual_new = th_radial_new - xr_yr_norm
+            residual_new_norm = torch.norm(residual_new, dim=2, keepdim=True)
+
+            # Compute actual reduction
+            actual_reduction = residual_norm - residual_new_norm
+
+            # Compute ratio of actual to predicted reduction
+            # predicted_reduction[predicted_reduction.abs() < eps] = eps #* torch.sign(predicted_reduction[predicted_reduction.abs() < eps])
+            rho = actual_reduction / predicted_reduction
+            rho[(actual_reduction == 0) & (predicted_reduction == 0)] = 1.0
+
+            # Update trust radius delta
+            delta_update_mask = rho > 0.5
+            delta[delta_update_mask] = torch.min(
+                2.0 * delta[delta_update_mask], delta_max
+            )
+
+            delta_decrease_mask = rho < 0.2
+            delta[delta_decrease_mask] = 0.25 * delta[delta_decrease_mask]
+
+            # Accept or reject the step
+            accept_step_mask = rho > eta
+            th = torch.where(accept_step_mask, th_new, th)
+
+        # Compute the ray direction using theta and xr_yr.
+        close_to_zero = torch.logical_and(th.abs() < eps, xr_yr_norm.abs() < eps)
+        ray_dir = torch.where(close_to_zero, xr_yr, th / xr_yr_norm * xr_yr)
+
+        ray = torch.cat([ray_dir, uv.new_ones(B, N, 1)], dim=2)
+        ray = ray.reshape(B, H, W, 3).permute(0, 3, 1, 2)
+
+        return ray
 
 
 class Fisheye624(Camera):
@@ -853,6 +1144,11 @@ class MEI(Camera):
 
 
 class BatchCamera(Camera):
+    """
+    This is not to be used directly, but to be used as a wrapper around multiple cameras.
+    It should expose only the `from_camera` method as it the only way to create a BatchCamera.
+    """
+
     def __init__(self, params, K, original_class, cameras):
         super().__init__(params, K)
         self.original_class = original_class

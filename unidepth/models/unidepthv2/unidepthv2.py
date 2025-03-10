@@ -15,15 +15,14 @@ from einops import rearrange
 from huggingface_hub import PyTorchModelHubMixin
 
 from unidepth.models.unidepthv2.decoder import Decoder
-from unidepth.utils.camera import BatchCamera
+from unidepth.utils.camera import BatchCamera, Camera, Pinhole
 from unidepth.utils.constants import (IMAGENET_DATASET_MEAN,
                                       IMAGENET_DATASET_STD)
 from unidepth.utils.distributed import is_main_process
 from unidepth.utils.misc import (first_stack, get_params, last_stack, match_gt,
                                  match_intrinsics, max_stack, mean_stack,
-                                 profile_method, softmax_stack)
+                                 softmax_stack)
 
-VERBOSE = False
 STACKING_FNS = {
     "max": max_stack,
     "mean": mean_stack,
@@ -126,13 +125,11 @@ class UniDepthV2(
         self.build(config)
         self.build_losses(config)
 
-    @profile_method(verbose=VERBOSE)
     def forward_train(self, inputs, image_metas):
         inputs, outputs = self.encode_decode(inputs, image_metas)
         losses = self.compute_losses(outputs, inputs, image_metas)
         return outputs, losses
 
-    @profile_method(verbose=VERBOSE)
     def forward_test(self, inputs, image_metas):
         inputs, outputs = self.encode_decode(inputs, image_metas)
         depth_gt = inputs["depth"]
@@ -223,16 +220,13 @@ class UniDepthV2(
 
         # remaining losses, we expect no more losses to be computed
         loss = self.losses["confidence"]
-        target_c = (
-            outputs["depth"].clip(min=1e-4).detach().log()
-            - inputs["depth"].clip(min=1e-4).log()
-        )
-        camera_losses = loss(
+        conf_losses = loss(
             outputs["confidence"].log(),
-            target=target_c.abs(),
+            target_gt=inputs["depth"],
+            taret_pred=outputs["depth"],
             mask=inputs["depth_mask"].clone(),
         )
-        losses["opt"][loss.name + "_conf"] = loss.weight * camera_losses.mean()
+        losses["opt"][loss.name + "_conf"] = loss.weight * conf_losses.mean()
         losses_to_be_computed.remove("confidence")
 
         assert (
@@ -243,7 +237,12 @@ class UniDepthV2(
 
     @torch.no_grad()
     @torch.autocast(device_type="cuda", enabled=True, dtype=torch.float16)
-    def infer(self, rgb: torch.Tensor, camera=None, normalize=True):
+    def infer(
+        self,
+        rgb: torch.Tensor,
+        camera: torch.Tensor | Camera | None = None,
+        normalize=True,
+    ):
         ratio_bounds = self.shape_constraints["ratio_bounds"]
         pixels_bounds = [
             self.shape_constraints["pixels_min"],
@@ -259,13 +258,19 @@ class UniDepthV2(
             new_upbound = (self.resolution_level + 1) * interval + pixels_bounds[0]
             pixels_bounds = (new_lowbound, new_upbound)
         else:
-            print("self.resolution_level not set, using default bounds")
+            warnings.warn("!! self.resolution_level not set, using default bounds !!")
 
         # houskeeping on cpu/cuda and batchify
         if rgb.ndim == 3:
             rgb = rgb.unsqueeze(0)
         if camera is not None:
+            if isinstance(camera, torch.Tensor):
+                assert (
+                    camera.shape[-1] == 3 and camera.shape[-2] == 3
+                ), "camera tensor should be of shape (..., 3, 3): assume pinhole"
+                camera = Pinhole(K=camera)
             camera = BatchCamera.from_camera(camera)
+            camera = camera.to(self.device)
         B, _, H, W = rgb.shape
 
         rgb = rgb.to(self.device)
@@ -332,7 +337,6 @@ class UniDepthV2(
         out["depth_features"] = model_outputs["depth_features"]
         return out
 
-    @profile_method(verbose=VERBOSE)
     def encode_decode(self, inputs, image_metas=[]):
         B, _, H, W = inputs["image"].shape
 
@@ -415,8 +419,6 @@ class UniDepthV2(
         return next(self.parameters()).device
 
     def build(self, config):
-        import importlib
-
         mod = importlib.import_module("unidepth.models.encoder")
         pixel_encoder_factory = getattr(mod, config["model"]["pixel_encoder"]["name"])
         pixel_encoder_config = {

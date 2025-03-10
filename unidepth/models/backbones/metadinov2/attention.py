@@ -64,9 +64,8 @@ class Attention(nn.Module):
 
 class MemEffAttention(Attention):
     def forward(self, x: torch.Tensor, attn_bias=None) -> torch.Tensor:
-        if (
-            not XFORMERS_AVAILABLE
-        ):  # new pytorch have good attn efficient, no need for xformers
+        # new pytorch have good attn efficient, no need for xformers
+        if not XFORMERS_AVAILABLE or x.device.type == "cpu":
             assert attn_bias is None, "xFormers is required for nested tensors usage"
             return super().forward(x)
 
