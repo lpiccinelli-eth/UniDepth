@@ -47,9 +47,6 @@ if __name__ == "__main__":
     name = f"unidepth-v2-vit{type_}14"
     model = UniDepthV2.from_pretrained(f"lpiccinelli/{name}")
 
-    # name = f"unidepth-v2old-vit{type_}14"
-    # model = UniDepthV2old.from_pretrained(f"lpiccinelli/{name}")
-
     # set resolution level (only V2)
     # model.resolution_level = 9
 

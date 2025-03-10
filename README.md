@@ -11,7 +11,7 @@
 
 ![](assets/docs/unidepthv2-banner.png)
 
-> [**UniDepthV2: Universal Monocular Metric Depth Estimation Made Simpler**](https://arxiv.org/abs/2403.18913),  
+> [**UniDepthV2: Universal Monocular Metric Depth Estimation Made Simpler**](https://arxiv.org/abs/2502.20110),  
 > Luigi Piccinelli, Christos Sakaridis, Yung-Hsu Yang, Mattia Segu, Siyuan Li, Wim Abbeloos, Luc Van Gool,  
 > under submission,  
 > *Paper at [arXiv 2502.20110](https://arxiv.org/abs/2502.20110)*  
@@ -185,15 +185,6 @@ The available models are the following:
         <td>ViT-L</td>
         <td><a href="https://huggingface.co/lpiccinelli/unidepth-v1-vitl14">unidepth-v1-vitl14</a></td>
     </tr>
-    <tr>
-        <td rowspan="2"><b>UnidepthV2old</b></td>
-        <td>ViT-S</td>
-        <td><a href="https://huggingface.co/lpiccinelli/unidepth-v2old-vits14">unidepth-v2old-vits14</a></td>
-    </tr>
-    <tr>
-        <td>ViT-L</td>
-        <td><a href="https://huggingface.co/lpiccinelli/unidepth-v2old-vitl14">unidepth-v2old-vitl14</a></td>
-    </tr>
     <hr style="border: 2px solid black;"><hr>
     <tr>
         <td rowspan="3"><b>UnidepthV2</b></td>
@@ -214,7 +205,7 @@ Please visit [Hugging Face](https://huggingface.co/lpiccinelli) or click on the 
 You can load UniDepth as the following, with `name` variable matching the table above:
 
 ```python
-from unidepth.models import UniDepthV1, UniDepthV2, UnidepthV2old
+from unidepth.models import UniDepthV1, UniDepthV2
 
 model_v1 = UniDepthV1.from_pretrained(f"lpiccinelli/{name}")
 model_v2 = UniDepthV2.from_pretrained(f"lpiccinelli/{name}")
