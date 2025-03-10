@@ -2,7 +2,7 @@ import numpy as np
 import torch
 from PIL import Image
 
-from unidepth.models import UniDepthV1, UniDepthV2
+from unidepth.models import UniDepthV1, UniDepthV2, UniDepthV2old
 from unidepth.utils import colorize, image_grid
 from unidepth.utils.camera import Pinhole
 
@@ -14,7 +14,7 @@ def demo(model):
     camera = Pinhole(K=intrinsics_torch.unsqueeze(0))
     
     # infer method of V1 uses still the K matrix as input
-    if isinstance(model, UniDepthV1): 
+    if isinstance(model, (UniDepthV2old, UniDepthV1)):
         camera = camera.K.squeeze(0)
 
     # predict

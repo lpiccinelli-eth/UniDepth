@@ -11,10 +11,10 @@
 
 ![](assets/docs/unidepthv2-banner.png)
 
-> [**UniDepthV2: Universal Monocular Metric Depth Estimation Made Simpler**](https://arxiv.org/abs/2403.18913),  
+> [**UniDepthV2: Universal Monocular Metric Depth Estimation Made Simpler**](https://arxiv.org/abs/2502.20110),  
 > Luigi Piccinelli, Christos Sakaridis, Yung-Hsu Yang, Mattia Segu, Siyuan Li, Wim Abbeloos, Luc Van Gool,  
 > under submission,  
-> *Paper at [arXiv 2502.20110](https://arxiv.org/abs/2502.20110)*  
+> *Paper at [arXiv 2502.20110](https://arxiv.org/abs/2502.20110.pdf)*  
 
 
 # UniDepth: Universal Monocular Metric Depth Estimation
@@ -141,7 +141,15 @@ intrinsics_path = "assets/demo/intrinsics.npy"
 # Load the intrinsics if available
 intrinsics = torch.from_numpy(np.load(intrinsics_path)) # 3 x 3
 
-predictions = model.infer(rgb, intrinsics)
+# For V2, we defined camera classes. If you pass a 3x3 tensor (as above)
+# it will convert to Pinhole, but you can pass classes from camera.py.
+# The `Camera` class is meant as an abstract, use only child classes as e.g.:
+from unidepth.utils.camera import Pinhole, Fisheye624
+
+camera = Pinhole(K=intrinsics) # pinhole 
+# fill in fisheye, params: fx,fy,cx,cy,d1,d2,d3,d4,d5,d6,t1,t2,s1,s2,s3,s4
+camera = Fisheye624(params=torch.tensor([...]))
+predictions = model.infer(rgb, camera)
 ```
 
 To use the forward method for your custom training, you should:  
@@ -222,7 +230,9 @@ To summarize the main differences are:
 - Confidence output.
 - Faster inference.
 - ONNX support.
+- New cameras support (see `camera.py`).
 
+UnidepthV2old is actually V1 version updated to compensate for wave artifacts due to wrong LiDAR accumulation.
 
 ## Training
 

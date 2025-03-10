@@ -1,16 +1,19 @@
+import warnings
 from typing import Union
 
 import torch
 
 try:
     from pytorch3d.ops.knn import knn_points
-except ImportError:
-    print(
-        "Pytorch3D is not available. Either install it or compile knn under "
-        "unidepth/ops/knn with `bash compile.sh`"
+except ImportError as e:
+    warnings.warn(
+        "Pytorch3D is not available. "
+        "Using unidepth.ops.knn. "
+        "Either install Pytorch3D or compile knn: "
+        "`cd unidepth/ops/knn with && bash compile.sh`"
+        "If you already build it, ignore this warning."
     )
     from unidepth.ops.knn import knn_points
-
 
 def _validate_chamfer_reduction_inputs(
     batch_reduction: Union[str, None], point_reduction: str

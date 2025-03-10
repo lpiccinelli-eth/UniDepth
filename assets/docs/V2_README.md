@@ -26,18 +26,24 @@ The model is >30% faster than V1, tested on RTX4090 with float16 data-type.
 In order to perform `EdgeGuidedLocalSSI` efficiently, you need to compile the CUDA operation we wrote to speedup the random patch extraction with `cd ./unidepth/ops/extract_patches && bash compile.sh`. Remember to export your `TORCH_CUDA_ARCH_LIST` if it is different wrt the defualt present in `compile.sh`.
 
 
+### Camera
+
+UniDepthV2 can accept a larger variety of cameras, plase check `unidepth/utils/camera.py` for a comprehensive list.
+`infer` method accepts either a tensor as a K matrix, i.e. assumes  pinhole!, or a **child** of `Camera`, which can be, e.g. Fisheye624, Pinhole, OPENCV, ...
+Do not pass directly a `Camera` class as it lacks methods and it is supposed to be an abtract parent class with some methods implemented.
+
+
 ### ONNX support
 
 We added support to UniDepthV2 in __ONNX__ format.
-Both with and without gt intrinsics support.
-It does not allow for dynamic shapes at test time.
 For instance you can run from the root of the repo:
 ```bash
 
-python ./unidepth/models/unidepthv2/export.py --version v2 --backbone vitl14 --shape (462, 616) --output-path unidepthv2.onnx --with-camera
+python ./unidepth/models/unidepthv2/export.py --version v2 --backbone vitl14 --shape (462, 616) --output-path unidepthv2.onnx
 ```
 
 Shape will be changed to the closest shape which is multiple of 14, i.e. ViT patch size.
 Your input shape at inference time will have to match with the (resized) shape passed to the exporter!
 The corresponding __ONNX__ model does not do any pre- or post-processing.
-Therefore, you should input an ImageNet-statistic normalized rgb image rescaled to the given input shape and, if `--with-camera` the corresponding (properly rescaled) camera intrinsics, too.
+Therefore, you should input an ImageNet-statistic normalized rgb image rescaled to the given input shape and.
+It assumes always camera predicted, to add the camera as input, you have to modify the forward signature and method before exporting.
