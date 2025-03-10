@@ -58,6 +58,6 @@ class Confidence(nn.Module):
             weight=config["weight"],
             output_fn=config["output_fn"],
             input_fn=config["input_fn"],
-            rescale=config["rescale"],
+            rescale=config.get("rescale", True),
         )
         return obj

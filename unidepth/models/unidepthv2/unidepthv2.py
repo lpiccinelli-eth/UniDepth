@@ -223,7 +223,7 @@ class UniDepthV2(
         conf_losses = loss(
             outputs["confidence"].log(),
             target_gt=inputs["depth"],
-            taret_pred=outputs["depth"],
+            target_pred=outputs["depth"],
             mask=inputs["depth_mask"].clone(),
         )
         losses["opt"][loss.name + "_conf"] = loss.weight * conf_losses.mean()
