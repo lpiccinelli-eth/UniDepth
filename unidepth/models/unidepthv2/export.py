@@ -154,7 +154,7 @@ if __name__ == "__main__":
 
     model = UniDepthV2ONNX(config) if not with_camera else UniDepthV2ONNXcam(config)
     path = huggingface_hub.hf_hub_download(
-        repo_id=f"lpiccinelli/unidepth-{version}-{backbone}",
+        repo_id=f"lpiccinelli/unidepth-{version}-{backbone}14",
         filename=f"pytorch_model.bin",
         repo_type="model",
     )
