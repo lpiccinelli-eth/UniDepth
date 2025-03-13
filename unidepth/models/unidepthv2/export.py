@@ -22,7 +22,7 @@ class UniDepthV2ONNX(UniDepthV2):
         eps: float = 1e-6,
         **kwargs,
     ):
-        super(UniDepthV2ONNX, self).__init__(config, eps)
+        super().__init__(config, eps)
 
     def forward(self, rgbs):
         B, _, H, W = rgbs.shape
@@ -52,7 +52,7 @@ class UniDepthV2ONNXcam(UniDepthV2):
         eps: float = 1e-6,
         **kwargs,
     ):
-        super(UniDepthV2ONNXcam, self).__init__(config, eps)
+        super().__init__(config, eps)
 
     def forward(self, rgbs, rays):
         B, _, H, W = rgbs.shape
@@ -169,3 +169,4 @@ if __name__ == "__main__":
         shape=shape,
         with_camera=with_camera,
     )
+

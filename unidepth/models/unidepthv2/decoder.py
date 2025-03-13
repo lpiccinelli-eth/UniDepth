@@ -389,7 +389,6 @@ class Decoder(nn.Module):
         rays_pred = rays_pred / torch.norm(rays_pred, dim=1, keepdim=True).clamp(
             min=1e-5
         )
-        rays_pred = rearrange(rays_pred, "b c h w -> b (h w) c")
 
         if self.training and rays_gt is not None:  # legacy
             prob = -1.0  # 0.8 * (1 - tanh(self.steps / 100000)) + 0.2
@@ -401,6 +400,8 @@ class Decoder(nn.Module):
         else:
             rays = rays_pred
 
+        rays = rearrange(rays, "b c h w -> b (h w) c")
+        
         return intrinsics_matrix, rays
 
     def forward(
