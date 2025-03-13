@@ -55,9 +55,6 @@ pycodestyle
 pyflakes
 pyparsing
 python-dateutil
-# pytorch3d is needed only for chamfer distance calculation
-# you can compile it from ops/knn and avoid this dependency
-pytorch3d @ git+https://github.com/facebookresearch/pytorch3d.git@stable
 pytz
 PyYAML
 requests

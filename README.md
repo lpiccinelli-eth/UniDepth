@@ -60,7 +60,7 @@
 Requirements are not in principle hard requirements, but there might be some differences (not tested):
 - Linux
 - Python 3.10+ 
-- CUDA 11.8
+- CUDA 11.8+
 
 Install the environment needed to run UniDepth with:
 ```shell

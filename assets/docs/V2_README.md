@@ -39,7 +39,7 @@ We added support to UniDepthV2 in __ONNX__ format.
 For instance you can run from the root of the repo:
 ```bash
 
-python ./unidepth/models/unidepthv2/export.py --version v2 --backbone vitl14 --shape (462, 616) --output-path unidepthv2.onnx
+python ./unidepth/models/unidepthv2/export.py --version v2 --backbone vitl --shape (462, 616) --output-path unidepthv2.onnx
 ```
 
 Shape will be changed to the closest shape which is multiple of 14, i.e. ViT patch size.
