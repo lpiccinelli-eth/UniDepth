@@ -10,7 +10,7 @@ except ImportError as e:
         "To run evaluation you need KNN. Please compile KNN: "
         "`cd unidepth/ops/knn with && bash compile.sh`."
     )
-    knn_points = lambda x : x
+    knn_points = lambda x, y : x, y
 
 def _validate_chamfer_reduction_inputs(
     batch_reduction: Union[str, None], point_reduction: str
