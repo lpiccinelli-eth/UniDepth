@@ -390,16 +390,14 @@ class Decoder(nn.Module):
             min=1e-5
         )
 
-        if self.training and rays_gt is not None:  # legacy
-            prob = -1.0  # 0.8 * (1 - tanh(self.steps / 100000)) + 0.2
-            where_use_gt_rays = torch.rand(B, 1, 1, device=device, dtype=dtype) < prob
-            where_use_gt_rays = where_use_gt_rays.int()
-            rays = rays_gt * where_use_gt_rays + rays_pred * (1 - where_use_gt_rays)
-        elif rays_gt is not None:
-            rays = rays_gt
-        else:
-            rays = rays_pred
+        ### LEGACY CODE FOR TRAINING
+        # if self.training and rays_gt is not None:  
+        #     prob = -1.0  # 0.8 * (1 - tanh(self.steps / 100000)) + 0.2
+        #     where_use_gt_rays = torch.rand(B, 1, 1, device=device, dtype=dtype) < prob
+        #     where_use_gt_rays = where_use_gt_rays.int()
+        #     rays = rays_gt * where_use_gt_rays + rays_pred * (1 - where_use_gt_rays)
 
+        rays = rays_pred if rays_gt is None else rays_gt
         rays = rearrange(rays, "b c h w -> b (h w) c")
         
         return intrinsics_matrix, rays
