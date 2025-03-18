@@ -159,15 +159,15 @@ class ImageDataset(BaseDataset):
         return results
 
     def __getitem__(self, idx):
-        # try:
-        if isinstance(idx, (list, tuple)):
-            results = [self.get_single_item(i) for i in idx]
-        else:
-            results = self.get_single_item(idx)
-        # except Exception as e:
-        #     print(f"Error loading sequence {idx} for {self.__class__.__name__}: {e}")
-        #     idx = np.random.randint(0, len(self.dataset))
-        #     results = self[idx]
+        try:
+            if isinstance(idx, (list, tuple)):
+                results = [self.get_single_item(i) for i in idx]
+            else:
+                results = self.get_single_item(idx)
+        except Exception as e:
+            print(f"Error loading sequence {idx} for {self.__class__.__name__}: {e}")
+            idx = np.random.randint(0, len(self.dataset))
+            results = self[idx]
         return results
 
     def get_intrinsics(self, idx, image_name):

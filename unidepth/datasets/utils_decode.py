@@ -16,9 +16,6 @@ def decode_depth(results, h5file, value, idx, depth_scale, name="depth", **kwarg
     decoded_data = Image.open(io.BytesIO(file))
     decoded_data = TF.pil_to_tensor(decoded_data).squeeze()
 
-    # decoded_data = cv2.imdecode(np.frombuffer(file, np.uint8), 128 | 1)
-    # decoded_data = torch.from_numpy(decoded_data).squeeze()
-
     if decoded_data.ndim == 3:  # 24 channel loading
         decoded_channels = [
             (decoded_data[0] & 0xFF).to(torch.int32),

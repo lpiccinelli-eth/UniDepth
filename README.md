@@ -60,7 +60,7 @@
 Requirements are not in principle hard requirements, but there might be some differences (not tested):
 - Linux
 - Python 3.10+ 
-- CUDA 11.8
+- CUDA 11.8+
 
 Install the environment needed to run UniDepth with:
 ```shell
@@ -76,6 +76,9 @@ pip install -e . --extra-index-url https://download.pytorch.org/whl/cu118
 # Install Pillow-SIMD (Optional)
 pip uninstall pillow
 CC="cc -mavx2" pip install -U --force-reinstall pillow-simd
+
+# Install KNN (for evaluation only)
+cd unidepth/ops/knn && bash compile.sh
 ```
 
 If you use conda, you should change the following: 

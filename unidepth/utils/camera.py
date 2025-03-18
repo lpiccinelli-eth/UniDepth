@@ -1082,7 +1082,6 @@ class MEI(Camera):
 
     @torch.autocast(device_type="cuda", enabled=False, dtype=torch.float32)
     def project(self, xyz):
-        eps = 1e-4
         is_flat = xyz.ndim == 3
         B, N = xyz.shape[:2]
 

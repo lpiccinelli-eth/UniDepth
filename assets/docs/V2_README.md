@@ -39,11 +39,11 @@ We added support to UniDepthV2 in __ONNX__ format.
 For instance you can run from the root of the repo:
 ```bash
 
-python ./unidepth/models/unidepthv2/export.py --version v2 --backbone vitl14 --shape (462, 616) --output-path unidepthv2.onnx
+python ./unidepth/models/unidepthv2/export.py --version v2 --backbone vitl --shape 462 616 --output-path unidepthv2.onnx
 ```
 
 Shape will be changed to the closest shape which is multiple of 14, i.e. ViT patch size.
 Your input shape at inference time will have to match with the (resized) shape passed to the exporter!
 The corresponding __ONNX__ model does not do any pre- or post-processing.
 Therefore, you should input an ImageNet-statistic normalized rgb image rescaled to the given input shape and.
-It assumes always camera predicted, to add the camera as input, you have to modify the forward signature and method before exporting.
+Add falg `--with-camera` to accept given GT camera as unprojected rays as input.
