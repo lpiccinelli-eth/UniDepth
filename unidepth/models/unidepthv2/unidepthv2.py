@@ -359,9 +359,7 @@ class UniDepthV2(
                 inputs["depth_paddings"] = inputs["depth_paddings"] + inputs["paddings"]
 
         if inputs.get("camera", None) is not None:
-            inputs["rays"] = rearrange(
-                inputs["camera"].get_rays(shapes=(B, H, W)), "b c h w -> b (h w) c"
-            )
+            inputs["rays"] = inputs["camera"].get_rays(shapes=(B, H, W))
 
         features, tokens = self.pixel_encoder(inputs["image"])
         inputs["features"] = [
@@ -378,8 +376,6 @@ class UniDepthV2(
         pts_3d = outputs["rays"] * outputs["radius"]
         outputs.update({"points": pts_3d, "depth": pts_3d[:, -1:]})
 
-        if "rays" in inputs:
-            inputs["rays"] = rearrange(inputs["rays"], "b (h w) c -> b c h w", h=H, w=W)
         return inputs, outputs
 
     def load_pretrained(self, model_file):

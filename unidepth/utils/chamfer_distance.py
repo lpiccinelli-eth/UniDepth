@@ -7,10 +7,11 @@ try:
     from unidepth.ops.knn import knn_points
 except ImportError as e:
     warnings.warn(
-        "To run evaluation you need KNN. Please compile KNN: "
+        "!! To run evaluation you need KNN. Please compile KNN: "
         "`cd unidepth/ops/knn with && bash compile.sh`."
     )
-    knn_points = lambda x, y : x, y
+    knn_points = lambda x : x
+
 
 def _validate_chamfer_reduction_inputs(
     batch_reduction: Union[str, None], point_reduction: str
