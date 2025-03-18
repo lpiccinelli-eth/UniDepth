@@ -78,7 +78,7 @@ pip uninstall pillow
 CC="cc -mavx2" pip install -U --force-reinstall pillow-simd
 
 # Install KNN (for evaluation only)
-cd unidepth/ops/knn with && bash compile.sh
+cd unidepth/ops/knn && bash compile.sh
 ```
 
 If you use conda, you should change the following: 
