@@ -146,7 +146,7 @@ if __name__ == "__main__":
         shape = shape_rounded
 
     # assumes command is from root of repo
-    with open(os.path.join("configs", f"config_{version}_{backbone}.json")) as f:
+    with open(os.path.join("configs", f"config_{version}_{backbone}14.json")) as f:
         config = json.load(f)
 
     # tell DINO not to use efficient attention: not exportable

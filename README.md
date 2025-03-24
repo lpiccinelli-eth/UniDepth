@@ -70,7 +70,7 @@ export NAME=Unidepth
 python -m venv $VENV_DIR/$NAME
 source $VENV_DIR/$NAME/bin/activate
 
-# Install UniDepth and dependencies
+# Install UniDepth and dependencies, cuda >11.8 work fine, too.
 pip install -e . --extra-index-url https://download.pytorch.org/whl/cu118
 
 # Install Pillow-SIMD (Optional)
@@ -78,7 +78,7 @@ pip uninstall pillow
 CC="cc -mavx2" pip install -U --force-reinstall pillow-simd
 
 # Install KNN (for evaluation only)
-cd unidepth/ops/knn && bash compile.sh
+cd unidepth/ops/knn;bash compile.sh;cd ../../../
 ```
 
 If you use conda, you should change the following: 
