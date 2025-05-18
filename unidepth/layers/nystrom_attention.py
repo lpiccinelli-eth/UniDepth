@@ -4,7 +4,17 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from einops import rearrange
-from xformers.components.attention import NystromAttention
+
+try:
+    from xformers.components.attention import NystromAttention
+except ImportError:
+    print("Cannot import NystromAttention, you can not run original UniDepth. UniDepthV2 is available.")
+    class NystromAttention():
+        def __init__(self, *args, **kwargs):
+            pass
+        def __call__(self, *args, **kwds):
+            raise NotImplementedError("NystromAttention is not available, please install xformers to use it.")
+            
 
 from .attention import AttentionBlock
 
