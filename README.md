@@ -62,6 +62,8 @@ Requirements are not in principle hard requirements, but there might be some dif
 - Python 3.10+ 
 - CUDA 11.8+
 
+
+### Local installation
 Install the environment needed to run UniDepth with:
 ```shell
 export VENV_DIR=<YOUR-VENVS-DIR>
@@ -101,6 +103,32 @@ python ./scripts/demo.py
 If everything runs correctly, `demo.py` should print: `ARel: 7.45%`.
 
 If you encounter `Segmentation Fault` after running the demo, you may need to uninstall torch via pip (`pip uninstall torch`) and install the torch version present in [requirements](requirements.txt) with `conda`.
+
+
+### Installation with Docker
+
+Make sure that you have installed [Docker]() and [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html).
+
+First, build the image:
+```shell
+docker build -t unidepth_image .
+```
+
+Second, run the container:
+```shell
+docker run -it --gpus all \
+    --name unidepth_container_1 \
+    -v "$(pwd):/home/depth_estimation" \
+    unidepth_image
+```
+
+Run the example inside of the containner:
+```shell
+# move the target file to the project root
+mv ./scripts/demo.py .
+# run the demo
+python3 demo.py
+```
 
 ## Get Started
 
