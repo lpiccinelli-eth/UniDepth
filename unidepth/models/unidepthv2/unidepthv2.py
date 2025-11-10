@@ -44,13 +44,13 @@ def get_paddings(original_shape, aspect_ratio_range):
 
     if orig_aspect_ratio > target_aspect_ratio:  # Too wide
         W_new = W_ori
-        H_new = int(W_ori / target_aspect_ratio)
+        H_new = max(int(W_ori / target_aspect_ratio), H_ori)
         pad_top = (H_new - H_ori) // 2
         pad_bottom = H_new - H_ori - pad_top
         pad_left, pad_right = 0, 0
     else:  # Too tall
         H_new = H_ori
-        W_new = int(H_ori * target_aspect_ratio)
+        W_new = max(int(H_ori * target_aspect_ratio), W_ori)
         pad_left = (W_new - W_ori) // 2
         pad_right = W_new - W_ori - pad_left
         pad_top, pad_bottom = 0, 0
